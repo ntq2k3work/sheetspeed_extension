@@ -63,4 +63,16 @@ assert.strictEqual(MusicEngine.matchInput('Db', noteWithSharp), true);
 assert.strictEqual(MusicEngine.matchInput('C', noteWithSharp), false);
 console.log('✔ Enharmonic note matching verified (C# == Db)');
 
+// 6. Test Chord Flashcards (Major, Minor, Dominant 7th, Flats)
+const chordTreble = MusicEngine.generateChord('treble');
+assert(chordTreble.chordName, 'Chord name should exist');
+assert(chordTreble.keys.length >= 3, 'Chord should have at least 3 notes');
+assert(chordTreble.frequencies.length === chordTreble.keys.length, 'All chord frequencies must be valid');
+console.log(`✔ Chord generation verified: ${chordTreble.chordFullName} (${chordTreble.targetLetters.join('-')})`);
+
+const flatNote = { letter: 'Bb', altLetter: 'A#', solfege: 'Si♭' };
+assert.strictEqual(MusicEngine.matchInput('Bb', flatNote), true);
+assert.strictEqual(MusicEngine.matchInput('A#', flatNote), true);
+console.log('✔ Enharmonic flat chord matching verified (Bb == A#)');
+
 console.log('All 2.0 Unit Tests Passed Successfully! 🚀');

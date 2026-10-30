@@ -408,6 +408,16 @@
         duration: 'w'
       });
 
+      // Add accidentals (sharps # and flats b) to chord keys if present
+      state.currentSequence.keys.forEach((k, idx) => {
+        const step = k.split('/')[0];
+        if (step.includes('#')) {
+          chordNote.addModifier(new VexFlow.Accidental('#'), idx);
+        } else if (step.includes('b')) {
+          chordNote.addModifier(new VexFlow.Accidental('b'), idx);
+        }
+      });
+
       if (state.userInputs.length === state.currentSequence.targetLetters.length) {
         chordNote.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
       } else if (state.isAnswerRevealed) {

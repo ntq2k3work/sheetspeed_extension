@@ -13,15 +13,20 @@
   const NOTE_META = {
     c: { letter: 'C', solfege: 'Đô', semitone: 0 },
     'c#': { letter: 'C#', altLetter: 'Db', solfege: 'Đô♯', semitone: 1 },
+    'db': { letter: 'Db', altLetter: 'C#', solfege: 'Rê♭', semitone: 1 },
     d: { letter: 'D', solfege: 'Rê', semitone: 2 },
     'd#': { letter: 'D#', altLetter: 'Eb', solfege: 'Rê♯', semitone: 3 },
+    'eb': { letter: 'Eb', altLetter: 'D#', solfege: 'Mi♭', semitone: 3 },
     e: { letter: 'E', solfege: 'Mi', semitone: 4 },
     f: { letter: 'F', solfege: 'Fa', semitone: 5 },
     'f#': { letter: 'F#', altLetter: 'Gb', solfege: 'Fa♯', semitone: 6 },
+    'gb': { letter: 'Gb', altLetter: 'F#', solfege: 'Sol♭', semitone: 6 },
     g: { letter: 'G', solfege: 'Sol', semitone: 7 },
     'g#': { letter: 'G#', altLetter: 'Ab', solfege: 'Sol♯', semitone: 8 },
+    'ab': { letter: 'Ab', altLetter: 'G#', solfege: 'La♭', semitone: 8 },
     a: { letter: 'A', solfege: 'La', semitone: 9 },
     'a#': { letter: 'A#', altLetter: 'Bb', solfege: 'La♯', semitone: 10 },
+    'bb': { letter: 'Bb', altLetter: 'A#', solfege: 'Si♭', semitone: 10 },
     b: { letter: 'B', solfege: 'Si', semitone: 11 },
   };
 
@@ -133,15 +138,16 @@
       const [stepWithAcc, octave] = key.split('/');
       const meta = NOTE_META[stepWithAcc.toLowerCase()];
       const hasSharp = stepWithAcc.includes('#');
+      const hasFlat = stepWithAcc.includes('b');
 
       notes.push({
         index: i,
         key: key,                              // e.g. 'c#/4'
         step: stepWithAcc[0].toUpperCase(),     // e.g. 'C'
-        accidental: hasSharp ? '#' : '',       // e.g. '#'
-        letter: meta.letter,                   // e.g. 'C#'
-        altLetter: meta.altLetter || meta.letter, // e.g. 'Db'
-        solfege: meta.solfege,                 // e.g. 'Đô♯'
+        accidental: hasSharp ? '#' : (hasFlat ? 'b' : ''),
+        letter: meta ? meta.letter : stepWithAcc.toUpperCase(),
+        altLetter: meta ? (meta.altLetter || meta.letter) : '',
+        solfege: meta ? meta.solfege : '',
         octave: parseInt(octave, 10),
         frequency: keyToFrequency(key),
         duration: 'q'
@@ -155,24 +161,85 @@
     };
   }
 
-  // Common Chord Definitions for Treble & Bass
+  // Comprehensive Chord Definitions for Treble & Bass
+  // Includes:
+  // - Hợp âm Trưởng (Major: C, D, E, F, G, A, B, Bb, Eb)
+  // - Hợp âm Thứ (Minor: Cm, Dm, Em, Fm, Gm, Am, Bm)
+  // - Hợp âm 7 át / Dominant 7th (C7, D7, E7, F7, G7, A7, B7, Bb7 - có bậc 7 giáng)
+  // - Hợp âm Thứ 7 (Minor 7th: Dm7, Em7, Am7, Cm7, Gm7)
+  // - Hợp âm Trưởng 7 (Major 7th: Cmaj7, Fmaj7)
   const CHORD_DEFINITIONS = {
     treble: [
+      // 1. Trưởng (Major)
       { name: 'C', fullName: 'Đô trưởng (C Major)', keys: ['c/4', 'e/4', 'g/4'], notes: ['C', 'E', 'G'] },
-      { name: 'Dm', fullName: 'Rê thứ (D Minor)', keys: ['d/4', 'f/4', 'a/4'], notes: ['D', 'F', 'A'] },
-      { name: 'Em', fullName: 'Mi thứ (E Minor)', keys: ['e/4', 'g/4', 'b/4'], notes: ['E', 'G', 'B'] },
+      { name: 'D', fullName: 'Rê trưởng (D Major)', keys: ['d/4', 'f#/4', 'a/4'], notes: ['D', 'F#', 'A'] },
+      { name: 'E', fullName: 'Mi trưởng (E Major)', keys: ['e/4', 'g#/4', 'b/4'], notes: ['E', 'G#', 'B'] },
       { name: 'F', fullName: 'Fa trưởng (F Major)', keys: ['f/4', 'a/4', 'c/5'], notes: ['F', 'A', 'C'] },
       { name: 'G', fullName: 'Sol trưởng (G Major)', keys: ['g/4', 'b/4', 'd/5'], notes: ['G', 'B', 'D'] },
+      { name: 'A', fullName: 'La trưởng (A Major)', keys: ['a/4', 'c#/5', 'e/5'], notes: ['A', 'C#', 'E'] },
+      { name: 'B', fullName: 'Si trưởng (B Major)', keys: ['b/4', 'd#/5', 'f#/5'], notes: ['B', 'D#', 'F#'] },
+      { name: 'Bb', fullName: 'Si giáng trưởng (B♭ Major)', keys: ['bb/3', 'd/4', 'f/4'], notes: ['Bb', 'D', 'F'] },
+      { name: 'Eb', fullName: 'Mi giáng trưởng (E♭ Major)', keys: ['eb/4', 'g/4', 'bb/4'], notes: ['Eb', 'G', 'Bb'] },
+
+      // 2. Thứ (Minor)
+      { name: 'Cm', fullName: 'Đô thứ (C Minor)', keys: ['c/4', 'eb/4', 'g/4'], notes: ['C', 'Eb', 'G'] },
+      { name: 'Dm', fullName: 'Rê thứ (D Minor)', keys: ['d/4', 'f/4', 'a/4'], notes: ['D', 'F', 'A'] },
+      { name: 'Em', fullName: 'Mi thứ (E Minor)', keys: ['e/4', 'g/4', 'b/4'], notes: ['E', 'G', 'B'] },
+      { name: 'Fm', fullName: 'Fa thứ (F Minor)', keys: ['f/4', 'ab/4', 'c/5'], notes: ['F', 'Ab', 'C'] },
+      { name: 'Gm', fullName: 'Sol thứ (G Minor)', keys: ['g/4', 'bb/4', 'd/5'], notes: ['G', 'Bb', 'D'] },
       { name: 'Am', fullName: 'La thứ (A Minor)', keys: ['a/4', 'c/5', 'e/5'], notes: ['A', 'C', 'E'] },
-      { name: 'G7', fullName: 'Sol 7 (G Dominant 7)', keys: ['g/4', 'b/4', 'd/5', 'f/5'], notes: ['G', 'B', 'D', 'F'] }
+      { name: 'Bm', fullName: 'Si thứ (B Minor)', keys: ['b/4', 'd/5', 'f#/5'], notes: ['B', 'D', 'F#'] },
+
+      // 3. Hợp âm 7 át / Dominant 7th (chứa bậc 7 giáng)
+      { name: 'C7', fullName: 'Đô 7 (C Dominant 7)', keys: ['c/4', 'e/4', 'g/4', 'bb/4'], notes: ['C', 'E', 'G', 'Bb'] },
+      { name: 'D7', fullName: 'Rê 7 (D Dominant 7)', keys: ['d/4', 'f#/4', 'a/4', 'c/5'], notes: ['D', 'F#', 'A', 'C'] },
+      { name: 'E7', fullName: 'Mi 7 (E Dominant 7)', keys: ['e/4', 'g#/4', 'b/4', 'd/5'], notes: ['E', 'G#', 'B', 'D'] },
+      { name: 'F7', fullName: 'Fa 7 (F Dominant 7)', keys: ['f/4', 'a/4', 'c/5', 'eb/5'], notes: ['F', 'A', 'C', 'Eb'] },
+      { name: 'G7', fullName: 'Sol 7 (G Dominant 7)', keys: ['g/4', 'b/4', 'd/5', 'f/5'], notes: ['G', 'B', 'D', 'F'] },
+      { name: 'A7', fullName: 'La 7 (A Dominant 7)', keys: ['a/4', 'c#/5', 'e/5', 'g/5'], notes: ['A', 'C#', 'E', 'G'] },
+      { name: 'B7', fullName: 'Si 7 (B Dominant 7)', keys: ['b/4', 'd#/5', 'f#/5', 'a/5'], notes: ['B', 'D#', 'F#', 'A'] },
+      { name: 'Bb7', fullName: 'Si giáng 7 (B♭ Dominant 7)', keys: ['bb/3', 'd/4', 'f/4', 'ab/4'], notes: ['Bb', 'D', 'F', 'Ab'] },
+
+      // 4. Hợp âm Thứ 7 (Minor 7th)
+      { name: 'Dm7', fullName: 'Rê thứ 7 (D Minor 7)', keys: ['d/4', 'f/4', 'a/4', 'c/5'], notes: ['D', 'F', 'A', 'C'] },
+      { name: 'Em7', fullName: 'Mi thứ 7 (E Minor 7)', keys: ['e/4', 'g/4', 'b/4', 'd/5'], notes: ['E', 'G', 'B', 'D'] },
+      { name: 'Am7', fullName: 'La thứ 7 (A Minor 7)', keys: ['a/4', 'c/5', 'e/5', 'g/5'], notes: ['A', 'C', 'E', 'G'] },
+      { name: 'Cm7', fullName: 'Đô thứ 7 (C Minor 7)', keys: ['c/4', 'eb/4', 'g/4', 'bb/4'], notes: ['C', 'Eb', 'G', 'Bb'] },
+      { name: 'Gm7', fullName: 'Sol thứ 7 (G Minor 7)', keys: ['g/4', 'bb/4', 'd/5', 'f/5'], notes: ['G', 'Bb', 'D', 'F'] },
+
+      // 5. Hợp âm Trưởng 7 (Major 7th)
+      { name: 'Cmaj7', fullName: 'Đô trưởng 7 (C Major 7)', keys: ['c/4', 'e/4', 'g/4', 'b/4'], notes: ['C', 'E', 'G', 'B'] },
+      { name: 'Fmaj7', fullName: 'Fa trưởng 7 (F Major 7)', keys: ['f/4', 'a/4', 'c/5', 'e/5'], notes: ['F', 'A', 'C', 'E'] }
     ],
     bass: [
+      // 1. Trưởng (Major)
       { name: 'C', fullName: 'Đô trưởng (C Major)', keys: ['c/3', 'e/3', 'g/3'], notes: ['C', 'E', 'G'] },
-      { name: 'Dm', fullName: 'Rê thứ (D Minor)', keys: ['d/3', 'f/3', 'a/3'], notes: ['D', 'F', 'A'] },
-      { name: 'Em', fullName: 'Mi thứ (E Minor)', keys: ['e/3', 'g/3', 'b/3'], notes: ['E', 'G', 'B'] },
+      { name: 'D', fullName: 'Rê trưởng (D Major)', keys: ['d/3', 'f#/3', 'a/3'], notes: ['D', 'F#', 'A'] },
+      { name: 'E', fullName: 'Mi trưởng (E Major)', keys: ['e/3', 'g#/3', 'b/3'], notes: ['E', 'G#', 'B'] },
       { name: 'F', fullName: 'Fa trưởng (F Major)', keys: ['f/2', 'a/2', 'c/3'], notes: ['F', 'A', 'C'] },
       { name: 'G', fullName: 'Sol trưởng (G Major)', keys: ['g/2', 'b/2', 'd/3'], notes: ['G', 'B', 'D'] },
-      { name: 'Am', fullName: 'La thứ (A Minor)', keys: ['a/2', 'c/3', 'e/3'], notes: ['A', 'C', 'E'] }
+      { name: 'A', fullName: 'La trưởng (A Major)', keys: ['a/2', 'c#/3', 'e/3'], notes: ['A', 'C#', 'E'] },
+      { name: 'Bb', fullName: 'Si giáng trưởng (B♭ Major)', keys: ['bb/2', 'd/3', 'f/3'], notes: ['Bb', 'D', 'F'] },
+
+      // 2. Thứ (Minor)
+      { name: 'Cm', fullName: 'Đô thứ (C Minor)', keys: ['c/3', 'eb/3', 'g/3'], notes: ['C', 'Eb', 'G'] },
+      { name: 'Dm', fullName: 'Rê thứ (D Minor)', keys: ['d/3', 'f/3', 'a/3'], notes: ['D', 'F', 'A'] },
+      { name: 'Em', fullName: 'Mi thứ (E Minor)', keys: ['e/3', 'g/3', 'b/3'], notes: ['E', 'G', 'B'] },
+      { name: 'Fm', fullName: 'Fa thứ (F Minor)', keys: ['f/2', 'ab/2', 'c/3'], notes: ['F', 'Ab', 'C'] },
+      { name: 'Gm', fullName: 'Sol thứ (G Minor)', keys: ['g/2', 'bb/2', 'd/3'], notes: ['G', 'Bb', 'D'] },
+      { name: 'Am', fullName: 'La thứ (A Minor)', keys: ['a/2', 'c/3', 'e/3'], notes: ['A', 'C', 'E'] },
+
+      // 3. Hợp âm 7 át / Dominant 7th
+      { name: 'C7', fullName: 'Đô 7 (C Dominant 7)', keys: ['c/3', 'e/3', 'g/3', 'bb/3'], notes: ['C', 'E', 'G', 'Bb'] },
+      { name: 'D7', fullName: 'Rê 7 (D Dominant 7)', keys: ['d/3', 'f#/3', 'a/3', 'c/4'], notes: ['D', 'F#', 'A', 'C'] },
+      { name: 'E7', fullName: 'Mi 7 (E Dominant 7)', keys: ['e/3', 'g#/3', 'b/3', 'd/4'], notes: ['E', 'G#', 'B', 'D'] },
+      { name: 'G7', fullName: 'Sol 7 (G Dominant 7)', keys: ['g/2', 'b/2', 'd/3', 'f/3'], notes: ['G', 'B', 'D', 'F'] },
+      { name: 'A7', fullName: 'La 7 (A Dominant 7)', keys: ['a/2', 'c#/3', 'e/3', 'g/3'], notes: ['A', 'C#', 'E', 'G'] },
+
+      // 4. Hợp âm Thứ 7 (Minor 7th)
+      { name: 'Dm7', fullName: 'Rê thứ 7 (D Minor 7)', keys: ['d/3', 'f/3', 'a/3', 'c/4'], notes: ['D', 'F', 'A', 'C'] },
+      { name: 'Em7', fullName: 'Mi thứ 7 (E Minor 7)', keys: ['e/3', 'g/3', 'b/3', 'd/4'], notes: ['E', 'G', 'B', 'D'] },
+      { name: 'Am7', fullName: 'La thứ 7 (A Minor 7)', keys: ['a/2', 'c/3', 'e/3', 'g/3'], notes: ['A', 'C', 'E', 'G'] }
     ]
   };
 
@@ -194,7 +261,8 @@
       return {
         key: k,
         letter: chord.notes[idx],
-        solfege: meta.solfege,
+        altLetter: meta ? (meta.altLetter || meta.letter) : chord.notes[idx],
+        solfege: meta ? meta.solfege : '',
         frequency: keyToFrequency(k)
       };
     });

@@ -365,13 +365,21 @@ input:checked + .slider:before {
   color: #f8fafc;
   cursor: pointer;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
   padding-bottom: 2px;
   font-size: 8px;
   font-weight: 700;
+  line-height: 1.1;
   box-shadow: 0 2px 4px rgba(0,0,0,0.4);
   transition: background 0.1s;
+}
+.p-key-black small {
+  font-size: 6px;
+  font-weight: 500;
+  opacity: 0.75;
+  color: #94a3b8;
 }
 .p-key-black:hover {
   background: #334155;

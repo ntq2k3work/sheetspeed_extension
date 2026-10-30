@@ -29,7 +29,17 @@
 - **Combo Fever Mode**: Đạt chuỗi 10 câu đúng liên tiếp, widget sẽ phát sáng ánh hào quang Neon rực rỡ và nhân đôi điểm kinh nghiệm (x2 XP)!
 - Âm thanh vinh danh: Hiệu ứng Fanfare chúc mừng mỗi khi bạn lên cấp (Level Up).
 
-### 4. 📊 Heatmap Nốt Hay Sai & Spaced Repetition (Lặp Lại Ngắt Quãng)
+### 4. 🎸 Thư Viện Hợp Âm Đầy Đủ (Chord Flashcards - Trưởng, Thứ, Giáng 7)
+- **Hợp âm xếp chồng thực tế (Stacked Chords)**: Hiển thị các nốt chồng lên nhau trên cùng một phách nhạc (Whole note `w`), mô phỏng cách đọc hợp âm piano thực chiến.
+- **Kho hợp âm phong phú (50+ hợp âm trên cả Khóa Sol & Khóa Fa)**:
+  - 🎹 **Hợp âm Trưởng (Major)**: C, D, E, F, G, A, B, B♭, E♭.
+  - 🎵 **Hợp âm Thứ (Minor)**: Cm, Dm, Em, Fm, Gm, Am, Bm.
+  - ⚡ **Hợp âm 7 át / Dominant 7th (chứa bậc 7 giáng - Flat 7th)**: C7, D7, E7, F7, G7, A7, B7, B♭7.
+  - 🎶 **Hợp âm Thứ 7 (Minor 7th)**: Dm7, Em7, Am7, Cm7, Gm7.
+  - 🌟 **Hợp âm Trưởng 7 (Major 7th)**: Cmaj7, Fmaj7.
+- **Nhận diện nốt thông minh (Enharmonic Matching)**: Khi gặp nốt giáng (ví dụ B♭, E♭, A♭), bạn có thể bấm phím đen tương ứng (A♯, D♯, G♯) trên bàn phím ảo hoặc đàn piano MIDI, hệ thống đều nhận diện chính xác tuyệt đối.
+
+### 5. 📊 Heatmap Nốt Hay Sai & Spaced Repetition (Lặp Lại Ngắt Quãng)
 - **Bản đồ nhiệt (Heatmap)**: Cung cấp thống kê trực quan về độ chính xác của từng nốt nhạc:
   - 🟢 **Xanh lá**: Phản xạ cực tốt (>80%).
   - 🟡 **Vàng**: Khá ổn (60-80%).

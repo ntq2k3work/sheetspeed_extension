@@ -393,13 +393,21 @@
       color: #f8fafc;
       cursor: pointer;
       display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 3px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      padding-bottom: 2px;
       font-size: 8px;
       font-weight: 700;
+      line-height: 1.1;
       box-shadow: 0 2px 4px rgba(0,0,0,0.4);
       transition: background 0.1s, transform 0.08s;
+    }
+    .p-key-black small {
+      font-size: 6px;
+      font-weight: 500;
+      opacity: 0.75;
+      color: #94a3b8;
     }
     .p-key-black:hover {
       background: #334155;
@@ -519,11 +527,11 @@
             </div>
             <!-- Black Keys (Accidentals) -->
             <div class="black-keys">
-              <button class="p-key-black" data-key="C#">C#</button>
-              <button class="p-key-black" data-key="D#">D#</button>
-              <button class="p-key-black" data-key="F#">F#</button>
-              <button class="p-key-black" data-key="G#">G#</button>
-              <button class="p-key-black" data-key="A#">A#</button>
+              <button class="p-key-black" data-key="C#">C#<small>D♭</small></button>
+              <button class="p-key-black" data-key="D#">D#<small>E♭</small></button>
+              <button class="p-key-black" data-key="F#">F#<small>G♭</small></button>
+              <button class="p-key-black" data-key="G#">G#<small>A♭</small></button>
+              <button class="p-key-black" data-key="A#">A#<small>B♭</small></button>
             </div>
           </div>
           <div class="bottom-info-row">
@@ -661,6 +669,16 @@
         clef: clef,
         keys: state.currentSequence.keys,
         duration: 'w'
+      });
+
+      // Add accidentals (sharps # and flats b) to chord keys if present
+      state.currentSequence.keys.forEach((k, idx) => {
+        const step = k.split('/')[0];
+        if (step.includes('#')) {
+          chordNote.addModifier(new VexFlow.Accidental('#'), idx);
+        } else if (step.includes('b')) {
+          chordNote.addModifier(new VexFlow.Accidental('b'), idx);
+        }
       });
 
       // Highlight logic
