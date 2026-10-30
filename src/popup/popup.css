@@ -1,0 +1,332 @@
+:root {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent-color: #6366f1;
+  --accent-hover: #4f46e5;
+  --emerald: #10b981;
+  --rose: #f43f5e;
+  --amber: #f59e0b;
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  width: 380px;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  padding: 16px;
+  user-select: none;
+}
+
+.popup-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Header */
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-icon {
+  font-size: 26px;
+}
+.brand-meta h1 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.brand-meta p {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--bg-tertiary);
+  transition: 0.2s;
+  border-radius: 22px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background-color: var(--emerald);
+}
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
+
+/* Stats Bar */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  background: var(--bg-secondary);
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  text-align: center;
+}
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat-num {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Practice Card */
+.practice-card {
+  background: var(--bg-secondary);
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.practice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.clef-tag {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+.popup-timer-wrap {
+  width: 100px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.popup-timer-bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, var(--emerald), var(--accent-color));
+  transition: width 0.1s linear;
+}
+
+.stave-box {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  justify-content: center;
+}
+.stave-box svg {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Slots */
+.slots-box {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.popup-slot {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+.popup-slot.active {
+  border-color: var(--accent-color);
+  border-style: solid;
+  background: rgba(99, 102, 241, 0.2);
+  color: #fff;
+}
+.popup-slot.correct {
+  border-color: var(--emerald);
+  border-style: solid;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--emerald);
+}
+.popup-slot.wrong {
+  border-color: var(--rose);
+  border-style: solid;
+  background: rgba(244, 63, 94, 0.2);
+  color: var(--rose);
+}
+.popup-slot .slot-solfege {
+  font-size: 8px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* Key Grid */
+.keys-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.key-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 0;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  transition: all 0.12s ease;
+}
+.key-btn small {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.key-btn:hover {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+}
+.key-btn:active {
+  background: var(--accent-color);
+  transform: translateY(1px);
+}
+
+/* Settings Drawer */
+.settings-drawer {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.drawer-header {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.drawer-header:hover {
+  color: var(--text-main);
+}
+.drawer-content {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-group label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.segmented-control {
+  display: flex;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.segment {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.segment.active {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+.setting-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.reset-stats-btn {
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #fb7185;
+  border-radius: 8px;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.reset-stats-btn:hover {
+  background: rgba(244, 63, 94, 0.2);
+}

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SheetSpeed - Luyện Đọc Sheet Nhạc 5s</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="../../lib/vexflow.min.js"></script>
+  <script src="../engine/music-engine.js"></script>
+  <script src="../engine/audio-synth.js"></script>
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <span class="brand-icon">🎵</span>
+        <div class="brand-meta">
+          <h1>SheetSpeed</h1>
+          <p>Luyện đọc sheet 5s (Gentle Mode)</p>
+        </div>
+      </div>
+      <label class="toggle-switch" title="Bật/Tắt thẻ nổi trên website">
+        <input type="checkbox" id="toggle-enabled" checked>
+        <span class="slider"></span>
+      </label>
+    </header>
+
+    <!-- Stats Bar -->
+    <section class="stats-bar">
+      <div class="stat-item">
+        <span class="stat-num" id="stat-streak">0</span>
+        <span class="stat-label">🔥 Streak</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num" id="stat-best">0</span>
+        <span class="stat-label">🏆 Kỷ lục</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num" id="stat-accuracy">100%</span>
+        <span class="stat-label">🎯 Độ chuẩn</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num" id="stat-total">0</span>
+        <span class="stat-label">📊 Đã giải</span>
+      </div>
+    </section>
+
+    <!-- Focus Practice Area (Play right inside popup) -->
+    <section class="practice-card">
+      <div class="practice-header">
+        <span class="clef-tag" id="popup-clef-tag">Khóa Sol 𝄞</span>
+        <div class="popup-timer-wrap">
+          <div class="popup-timer-bar" id="popup-timer-bar"></div>
+        </div>
+      </div>
+      
+      <div class="stave-box" id="popup-stave-container"></div>
+      
+      <div class="slots-box" id="popup-slots-container"></div>
+
+      <div class="keys-grid">
+        <button class="key-btn" data-key="C">C <small>Đô</small></button>
+        <button class="key-btn" data-key="D">D <small>Rê</small></button>
+        <button class="key-btn" data-key="E">E <small>Mi</small></button>
+        <button class="key-btn" data-key="F">F <small>Fa</small></button>
+        <button class="key-btn" data-key="G">G <small>Sol</small></button>
+        <button class="key-btn" data-key="A">A <small>La</small></button>
+        <button class="key-btn" data-key="B">B <small>Si</small></button>
+      </div>
+    </section>
+
+    <!-- Quick Settings Accordion -->
+    <details class="settings-drawer">
+      <summary class="drawer-header">⚙️ Cài đặt & Tùy chọn</summary>
+      <div class="drawer-content">
+        <div class="form-group">
+          <label>Khóa nhạc (Clef)</label>
+          <div class="segmented-control" id="control-clef">
+            <button type="button" class="segment active" data-val="mixed">Xen kẽ</button>
+            <button type="button" class="segment" data-val="treble">Sol 𝄞</button>
+            <button type="button" class="segment" data-val="bass">Fa 𝄢</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Thời gian mỗi câu</label>
+          <div class="segmented-control" id="control-interval">
+            <button type="button" class="segment" data-val="3">3s</button>
+            <button type="button" class="segment active" data-val="5">5s (Chuẩn)</button>
+            <button type="button" class="segment" data-val="10">10s</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Độ dài chuỗi nốt</label>
+          <div class="segmented-control" id="control-length">
+            <button type="button" class="segment active" data-val="3">3 nốt</button>
+            <button type="button" class="segment" data-val="4">4 nốt</button>
+          </div>
+        </div>
+
+        <div class="setting-toggle-row">
+          <span>Âm thanh piano (Web Audio)</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-sound" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <button class="reset-stats-btn" id="btn-reset-stats">Xóa dữ liệu thống kê</button>
+      </div>
+    </details>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
