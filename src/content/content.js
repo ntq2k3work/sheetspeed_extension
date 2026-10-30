@@ -313,6 +313,13 @@
       background: rgba(239, 68, 68, 0.2);
       color: #f87171;
     }
+    .note-slot.revealed {
+      border-color: #f59e0b;
+      border-style: solid;
+      background: rgba(245, 158, 11, 0.25);
+      color: #fbbf24;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+    }
     .note-slot .slot-solfege {
       font-size: 8px;
       font-weight: 500;
@@ -712,14 +719,18 @@
           note.addModifier(new VexFlow.Accidental(n.accidental), 0);
         }
 
-        if (i < state.userInputs.length) {
+        if (state.isAnswerRevealed) {
+          if (i < state.userInputs.length && MusicEngine.matchInput(state.userInputs[i], n)) {
+            note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
+          } else {
+            note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
+          }
+        } else if (i < state.userInputs.length) {
           if (MusicEngine.matchInput(state.userInputs[i], n)) {
             note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
           } else {
             note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' });
           }
-        } else if (state.isAnswerRevealed) {
-          note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
         }
 
         return note;
@@ -747,9 +758,23 @@
       const slot = document.createElement('div');
       slot.className = 'note-slot';
 
-      if (idx === state.userInputs.length && !state.isAnswerRevealed) {
-        slot.classList.add('active');
-        slot.innerHTML = `<span class="slot-letter">?</span>`;
+      if (state.isAnswerRevealed) {
+        if (idx < state.userInputs.length && MusicEngine.matchInput(state.userInputs[idx], note)) {
+          slot.classList.add('correct');
+          slot.innerHTML = `
+            <span class="slot-letter">${note.letter}</span>
+            <span class="slot-solfege">${note.solfege}</span>
+          `;
+        } else {
+          // Show correct answer highlighted with strike-through wrong note if any
+          slot.classList.add('revealed');
+          const wrongInput = idx < state.userInputs.length ? state.userInputs[idx] : '';
+          slot.innerHTML = `
+            <span class="slot-letter">${note.letter}</span>
+            <span class="slot-solfege">${note.solfege}</span>
+            ${wrongInput ? `<span style="font-size:7px;color:#f87171;text-decoration:line-through;margin-top:-2px;">${wrongInput}</span>` : ''}
+          `;
+        }
       } else if (idx < state.userInputs.length) {
         const isCorrect = MusicEngine.matchInput(state.userInputs[idx], note);
         slot.classList.add(isCorrect ? 'correct' : 'wrong');
@@ -757,12 +782,9 @@
           <span class="slot-letter">${state.userInputs[idx]}</span>
           <span class="slot-solfege">${note.solfege}</span>
         `;
-      } else if (state.isAnswerRevealed) {
-        slot.classList.add('wrong');
-        slot.innerHTML = `
-          <span class="slot-letter">${note.letter}</span>
-          <span class="slot-solfege">${note.solfege}</span>
-        `;
+      } else if (idx === state.userInputs.length) {
+        slot.classList.add('active');
+        slot.innerHTML = `<span class="slot-letter">?</span>`;
       } else {
         slot.innerHTML = `<span class="slot-letter">_</span>`;
       }
@@ -804,6 +826,7 @@
         handleSequenceSuccess();
       }
     } else {
+      // 1. Show user's wrong answer in red first
       state.userInputs.push(inputNote);
       if (window.AudioSynth) {
         window.AudioSynth.playSoftMiss();
@@ -818,11 +841,25 @@
         totalAnswered: (state.settings.totalAnswered || 0) + 1
       });
       updateStreakUI();
+      clearInterval(state.timerId);
 
-      state.isAnswerRevealed = true;
+      // 2. After 450ms, reveal the correct answer and play its sound
       setTimeout(() => {
-        nextQuestion();
-      }, 1200);
+        state.isAnswerRevealed = true;
+        if (window.AudioSynth) {
+          if (state.currentSequence.type === 'chord' && window.AudioSynth.playChord) {
+            window.AudioSynth.playChord(state.currentSequence.frequencies, 0.8);
+          } else {
+            window.AudioSynth.playNote(currentNote.frequency, 0.5);
+          }
+        }
+        renderStave();
+
+        // 3. Keep correct answer visible for 1.6s so user can learn before next question
+        setTimeout(() => {
+          nextQuestion();
+        }, 1600);
+      }, 450);
     }
   }
 
@@ -936,15 +973,12 @@
       }
 
       if (currentStep <= 0) {
-        if (state.userInputs.length === 0) {
+        clearInterval(state.timerId);
+        state.isAnswerRevealed = true;
+        renderStave();
+        setTimeout(() => {
           nextQuestion();
-        } else {
-          state.isAnswerRevealed = true;
-          renderStave();
-          setTimeout(() => {
-            nextQuestion();
-          }, 1000);
-        }
+        }, 1500);
       }
     }, stepMs);
   }

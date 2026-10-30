@@ -300,6 +300,13 @@ input:checked + .slider:before {
   background: rgba(244, 63, 94, 0.2);
   color: var(--rose);
 }
+.popup-slot.revealed {
+  border-color: #f59e0b;
+  border-style: solid;
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
 .popup-slot .slot-solfege {
   font-size: 8px;
   opacity: 0.8;

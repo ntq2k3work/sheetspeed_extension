@@ -442,14 +442,18 @@
           note.addModifier(new VexFlow.Accidental(n.accidental), 0);
         }
 
-        if (i < state.userInputs.length) {
+        if (state.isAnswerRevealed) {
+          if (i < state.userInputs.length && MusicEngine.matchInput(state.userInputs[i], n)) {
+            note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
+          } else {
+            note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
+          }
+        } else if (i < state.userInputs.length) {
           if (MusicEngine.matchInput(state.userInputs[i], n)) {
             note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
           } else {
             note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' });
           }
-        } else if (state.isAnswerRevealed) {
-          note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
         }
 
         return note;
@@ -475,9 +479,22 @@
       const slot = document.createElement('div');
       slot.className = 'popup-slot';
 
-      if (idx === state.userInputs.length && !state.isAnswerRevealed) {
-        slot.classList.add('active');
-        slot.innerHTML = `<span>?</span>`;
+      if (state.isAnswerRevealed) {
+        if (idx < state.userInputs.length && MusicEngine.matchInput(state.userInputs[idx], note)) {
+          slot.classList.add('correct');
+          slot.innerHTML = `
+            <span>${note.letter}</span>
+            <span class="slot-solfege">${note.solfege}</span>
+          `;
+        } else {
+          slot.classList.add('revealed');
+          const wrongInput = idx < state.userInputs.length ? state.userInputs[idx] : '';
+          slot.innerHTML = `
+            <span>${note.letter}</span>
+            <span class="slot-solfege">${note.solfege}</span>
+            ${wrongInput ? `<span style="font-size:7px;color:#f87171;text-decoration:line-through;margin-top:-2px;">${wrongInput}</span>` : ''}
+          `;
+        }
       } else if (idx < state.userInputs.length) {
         const isCorrect = MusicEngine.matchInput(state.userInputs[idx], note);
         slot.classList.add(isCorrect ? 'correct' : 'wrong');
@@ -485,12 +502,9 @@
           <span>${state.userInputs[idx]}</span>
           <span class="slot-solfege">${note.solfege}</span>
         `;
-      } else if (state.isAnswerRevealed) {
-        slot.classList.add('wrong');
-        slot.innerHTML = `
-          <span>${note.letter}</span>
-          <span class="slot-solfege">${note.solfege}</span>
-        `;
+      } else if (idx === state.userInputs.length) {
+        slot.classList.add('active');
+        slot.innerHTML = `<span>?</span>`;
       } else {
         slot.innerHTML = `<span>_</span>`;
       }
@@ -531,6 +545,7 @@
         handleSequenceSuccess();
       }
     } else {
+      // 1. Show user wrong answer in red
       state.userInputs.push(inputNote);
       if (window.AudioSynth) window.AudioSynth.playSoftMiss();
       renderStave();
@@ -541,9 +556,23 @@
         noteStats,
         totalAnswered: (state.settings.totalAnswered || 0) + 1
       });
+      clearInterval(state.timerId);
 
-      state.isAnswerRevealed = true;
-      setTimeout(nextQuestion, 1100);
+      // 2. Reveal correct answer and play sound after 450ms
+      setTimeout(() => {
+        state.isAnswerRevealed = true;
+        if (window.AudioSynth) {
+          if (state.currentSequence.type === 'chord' && window.AudioSynth.playChord) {
+            window.AudioSynth.playChord(state.currentSequence.frequencies, 0.8);
+          } else {
+            window.AudioSynth.playNote(currentNote.frequency, 0.5);
+          }
+        }
+        renderStave();
+
+        // 3. Keep correct answer for 1.6s so user can learn
+        setTimeout(nextQuestion, 1600);
+      }, 450);
     }
   }
 
@@ -597,13 +626,10 @@
       }
 
       if (currentStep <= 0) {
-        if (state.userInputs.length === 0) {
-          nextQuestion();
-        } else {
-          state.isAnswerRevealed = true;
-          renderStave();
-          setTimeout(nextQuestion, 900);
-        }
+        clearInterval(state.timerId);
+        state.isAnswerRevealed = true;
+        renderStave();
+        setTimeout(nextQuestion, 1500);
       }
     }, stepMs);
   }
