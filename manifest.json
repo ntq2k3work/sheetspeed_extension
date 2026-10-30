@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "SheetSpeed - Luyện Đọc Sheet Nhạc 5s",
+  "name": "NoteGuitar - Luyện Đọc Sheet Nhạc 5s",
   "version": "1.0.0",
   "description": "Luyện phản xạ đọc nốt nhạc Khóa Sol & Khóa Fa dạng chuỗi nốt mỗi 5 giây với Chế độ nhẹ nhàng (Gentle Mode).",
   "icons": {
@@ -9,7 +9,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "SheetSpeed - Luyện Đọc Sheet Nhạc",
+    "default_title": "NoteGuitar - Luyện Đọc Sheet Nhạc",
     "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

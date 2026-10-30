@@ -466,7 +466,9 @@
             <circle class="ring-bg" cx="30" cy="30" r="27"></circle>
             <circle class="ring-progress" id="bubble-progress" cx="30" cy="30" r="27"></circle>
           </svg>
-          <div class="bubble-icon">🎵</div>
+          <div class="bubble-icon">
+            <img src="${chrome.runtime ? chrome.runtime.getURL('icons/icon48.png') : ''}" style="width:26px;height:26px;border-radius:50%;object-fit:contain;display:block;" alt="NoteGuitar">
+          </div>
         </div>
       `;
       shadow.getElementById('btn-expand').addEventListener('click', () => {
@@ -491,7 +493,10 @@
         </div>
         <div class="card-header" id="card-header">
           <div class="brand-meta-row">
-            <span class="clef-badge" id="clef-badge">${clefLabel}</span>
+            <span class="clef-badge" id="clef-badge">
+              <img src="${chrome.runtime ? chrome.runtime.getURL('icons/icon16.png') : ''}" style="width:13px;height:13px;border-radius:3px;object-fit:contain;margin-right:4px;" alt="logo">
+              ${clefLabel}
+            </span>
             ${state.currentSequence && state.currentSequence.type === 'chord' ? `<span class="rpg-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);" title="${state.currentSequence.chordFullName}">🎼 ${state.currentSequence.chordName}</span>` : ''}
             ${isRpgMode ? `<span class="rpg-badge" title="Cấp độ RPG: ${rpgInfo.current.title}">Lv.${rpgInfo.current.level}</span>` : ''}
             <span class="streak-badge" title="Chuỗi đúng">🔥 <span id="streak-count">${state.settings.streak || 0}</span></span>
