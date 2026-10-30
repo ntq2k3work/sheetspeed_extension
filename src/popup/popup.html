@@ -143,11 +143,19 @@
           </div>
 
           <div class="form-group">
-            <label>Thời gian mỗi câu</label>
+            <div class="label-row">
+              <label>Thời gian mỗi câu</label>
+              <span class="custom-sec-badge" id="interval-display-badge">5s</span>
+            </div>
             <div class="segmented-control" id="control-interval">
               <button type="button" class="segment" data-val="3">3s</button>
-              <button type="button" class="segment active" data-val="5">5s (Chuẩn)</button>
+              <button type="button" class="segment active" data-val="5">5s</button>
               <button type="button" class="segment" data-val="10">10s</button>
+              <button type="button" class="segment" data-val="custom">Tùy chỉnh ⏱️</button>
+            </div>
+            <div class="custom-interval-input-wrap" id="custom-interval-wrap" style="display: none;">
+              <input type="number" id="input-custom-interval" min="1" max="120" value="5" placeholder="Nhập số giây">
+              <span class="input-unit">giây (1 - 120s)</span>
             </div>
           </div>
 

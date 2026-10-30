@@ -38,6 +38,10 @@
   const midiStatus = document.getElementById('midi-status');
   const customOptions = document.getElementById('custom-options');
 
+  const intervalDisplayBadge = document.getElementById('interval-display-badge');
+  const customIntervalWrap = document.getElementById('custom-interval-wrap');
+  const inputCustomInterval = document.getElementById('input-custom-interval');
+
   const rpgLevelBadge = document.getElementById('rpg-level-badge');
   const rpgLevelTitle = document.getElementById('rpg-level-title');
   const rpgXpText = document.getElementById('rpg-xp-text');
@@ -101,7 +105,19 @@
 
     setSegmentActive('control-gamemode', state.settings.gameMode);
     setSegmentActive('control-clef', state.settings.clefMode);
-    setSegmentActive('control-interval', String(state.settings.intervalSeconds));
+    
+    const sec = state.settings.intervalSeconds || 5;
+    if (intervalDisplayBadge) intervalDisplayBadge.textContent = `${sec}s`;
+    if (inputCustomInterval) inputCustomInterval.value = sec;
+
+    if ([3, 5, 10].includes(sec)) {
+      setSegmentActive('control-interval', String(sec));
+      if (customIntervalWrap) customIntervalWrap.style.display = 'none';
+    } else {
+      setSegmentActive('control-interval', 'custom');
+      if (customIntervalWrap) customIntervalWrap.style.display = 'flex';
+    }
+
     setSegmentActive('control-length', String(state.settings.seqLength));
 
     if (customOptions) {
@@ -216,9 +232,31 @@
     });
 
     setupSegmentGroup('control-interval', (val) => {
-      saveSettings({ intervalSeconds: parseInt(val, 10) });
+      if (val === 'custom') {
+        if (customIntervalWrap) customIntervalWrap.style.display = 'flex';
+        const customVal = Math.max(1, Math.min(120, parseInt(inputCustomInterval.value, 10) || 5));
+        if (intervalDisplayBadge) intervalDisplayBadge.textContent = `${customVal}s`;
+        saveSettings({ intervalSeconds: customVal });
+      } else {
+        if (customIntervalWrap) customIntervalWrap.style.display = 'none';
+        const numVal = parseInt(val, 10);
+        if (intervalDisplayBadge) intervalDisplayBadge.textContent = `${numVal}s`;
+        if (inputCustomInterval) inputCustomInterval.value = numVal;
+        saveSettings({ intervalSeconds: numVal });
+      }
       resetTimer();
     });
+
+    if (inputCustomInterval) {
+      inputCustomInterval.addEventListener('input', (e) => {
+        let val = parseInt(e.target.value, 10);
+        if (isNaN(val)) return;
+        val = Math.max(1, Math.min(120, val));
+        if (intervalDisplayBadge) intervalDisplayBadge.textContent = `${val}s`;
+        saveSettings({ intervalSeconds: val });
+        resetTimer();
+      });
+    }
 
     setupSegmentGroup('control-length', (val) => {
       saveSettings({ seqLength: parseInt(val, 10) });
