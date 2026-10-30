@@ -11,6 +11,7 @@
     intervalSeconds: 5,
     clefMode: 'mixed',
     seqLength: 3,
+    drillMode: 'notes', // 'notes' | 'chords'
     allowAccidentals: false,
     gameMode: 'custom',
     xp: 0,
@@ -104,6 +105,7 @@
     if (toggleAccidentals) toggleAccidentals.checked = !!state.settings.allowAccidentals;
 
     setSegmentActive('control-gamemode', state.settings.gameMode);
+    setSegmentActive('control-drillmode', state.settings.drillMode || 'notes');
     setSegmentActive('control-clef', state.settings.clefMode);
     
     const sec = state.settings.intervalSeconds || 5;
@@ -223,6 +225,12 @@
     setupSegmentGroup('control-gamemode', (val) => {
       saveSettings({ gameMode: val });
       if (customOptions) customOptions.style.display = val === 'rpg' ? 'none' : 'block';
+      nextQuestion();
+    });
+
+    // Drill mode (Notes vs Chords)
+    setupSegmentGroup('control-drillmode', (val) => {
+      saveSettings({ drillMode: val });
       nextQuestion();
     });
 
@@ -349,19 +357,26 @@
       allowAccidentals = rpg.accidentals;
     }
 
-    state.currentSequence = MusicEngine.generateSequence({
-      clefMode: clefMode,
-      length: length,
-      allowAccidentals: allowAccidentals,
-      noteStats: state.settings.noteStats
-    });
+    if (state.settings.gameMode !== 'rpg' && state.settings.drillMode === 'chords') {
+      state.currentSequence = MusicEngine.generateChord(clefMode);
+    } else {
+      state.currentSequence = MusicEngine.generateSequence({
+        clefMode: clefMode,
+        length: length,
+        allowAccidentals: allowAccidentals,
+        noteStats: state.settings.noteStats
+      });
+    }
     state.userInputs = [];
     state.isAnswerRevealed = false;
 
     if (popupClefTag) {
-      popupClefTag.textContent = state.currentSequence.clef === 'treble' 
-        ? 'Khóa Sol 𝄞' 
-        : 'Khóa Fa 𝄢';
+      const clefName = state.currentSequence.clef === 'treble' ? 'Khóa Sol 𝄞' : 'Khóa Fa 𝄢';
+      if (state.currentSequence.type === 'chord') {
+        popupClefTag.textContent = `${clefName} (${state.currentSequence.chordName})`;
+      } else {
+        popupClefTag.textContent = clefName;
+      }
     }
 
     renderStave();
@@ -386,36 +401,57 @@
     stave.addClef(clef);
     stave.setContext(context).draw();
 
-    const staveNotes = notesData.map((n, i) => {
-      const note = new VexFlow.StaveNote({
+    if (state.currentSequence.type === 'chord') {
+      const chordNote = new VexFlow.StaveNote({
         clef: clef,
-        keys: [n.key],
-        duration: n.duration
+        keys: state.currentSequence.keys,
+        duration: 'w'
       });
 
-      if (n.accidental) {
-        note.addModifier(new VexFlow.Accidental(n.accidental), 0);
-      }
-
-      if (i < state.userInputs.length) {
-        if (MusicEngine.matchInput(state.userInputs[i], n)) {
-          note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
-        } else {
-          note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' });
-        }
+      if (state.userInputs.length === state.currentSequence.targetLetters.length) {
+        chordNote.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
       } else if (state.isAnswerRevealed) {
-        note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
+        chordNote.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
       }
 
-      return note;
-    });
+      const voice = new VexFlow.Voice({ num_beats: 4, beat_value: 4 });
+      voice.setStrict(false);
+      voice.addTickables([chordNote]);
 
-    const voice = new VexFlow.Voice({ num_beats: notesData.length, beat_value: 4 });
-    voice.setStrict(false);
-    voice.addTickables(staveNotes);
+      new VexFlow.Formatter().joinVoices([voice]).format([voice], width - 120);
+      voice.draw(context, stave);
+    } else {
+      const staveNotes = notesData.map((n, i) => {
+        const note = new VexFlow.StaveNote({
+          clef: clef,
+          keys: [n.key],
+          duration: n.duration
+        });
 
-    new VexFlow.Formatter().joinVoices([voice]).format([voice], width - 90);
-    voice.draw(context, stave);
+        if (n.accidental) {
+          note.addModifier(new VexFlow.Accidental(n.accidental), 0);
+        }
+
+        if (i < state.userInputs.length) {
+          if (MusicEngine.matchInput(state.userInputs[i], n)) {
+            note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
+          } else {
+            note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' });
+          }
+        } else if (state.isAnswerRevealed) {
+          note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
+        }
+
+        return note;
+      });
+
+      const voice = new VexFlow.Voice({ num_beats: notesData.length, beat_value: 4 });
+      voice.setStrict(false);
+      voice.addTickables(staveNotes);
+
+      new VexFlow.Formatter().joinVoices([voice]).format([voice], width - 90);
+      voice.draw(context, stave);
+    }
 
     renderSlots();
   }
@@ -478,6 +514,9 @@
       renderStave();
 
       if (state.userInputs.length === notes.length) {
+        if (state.currentSequence.type === 'chord' && window.AudioSynth && window.AudioSynth.playChord) {
+          window.AudioSynth.playChord(state.currentSequence.frequencies, 1.0);
+        }
         saveSettings({ noteStats });
         handleSequenceSuccess();
       }

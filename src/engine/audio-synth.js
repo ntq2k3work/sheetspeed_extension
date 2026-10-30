@@ -71,6 +71,13 @@
       osc2.stop(now + duration + 0.05);
     }
 
+    playChord(frequencies = [], duration = 0.8) {
+      if (this.isMuted) return;
+      frequencies.forEach(f => {
+        this.playNote(f, duration);
+      });
+    }
+
     playSuccess() {
       if (this.isMuted) return;
       const baseNotes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6

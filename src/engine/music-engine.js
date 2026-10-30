@@ -155,6 +155,62 @@
     };
   }
 
+  // Common Chord Definitions for Treble & Bass
+  const CHORD_DEFINITIONS = {
+    treble: [
+      { name: 'C', fullName: 'Đô trưởng (C Major)', keys: ['c/4', 'e/4', 'g/4'], notes: ['C', 'E', 'G'] },
+      { name: 'Dm', fullName: 'Rê thứ (D Minor)', keys: ['d/4', 'f/4', 'a/4'], notes: ['D', 'F', 'A'] },
+      { name: 'Em', fullName: 'Mi thứ (E Minor)', keys: ['e/4', 'g/4', 'b/4'], notes: ['E', 'G', 'B'] },
+      { name: 'F', fullName: 'Fa trưởng (F Major)', keys: ['f/4', 'a/4', 'c/5'], notes: ['F', 'A', 'C'] },
+      { name: 'G', fullName: 'Sol trưởng (G Major)', keys: ['g/4', 'b/4', 'd/5'], notes: ['G', 'B', 'D'] },
+      { name: 'Am', fullName: 'La thứ (A Minor)', keys: ['a/4', 'c/5', 'e/5'], notes: ['A', 'C', 'E'] },
+      { name: 'G7', fullName: 'Sol 7 (G Dominant 7)', keys: ['g/4', 'b/4', 'd/5', 'f/5'], notes: ['G', 'B', 'D', 'F'] }
+    ],
+    bass: [
+      { name: 'C', fullName: 'Đô trưởng (C Major)', keys: ['c/3', 'e/3', 'g/3'], notes: ['C', 'E', 'G'] },
+      { name: 'Dm', fullName: 'Rê thứ (D Minor)', keys: ['d/3', 'f/3', 'a/3'], notes: ['D', 'F', 'A'] },
+      { name: 'Em', fullName: 'Mi thứ (E Minor)', keys: ['e/3', 'g/3', 'b/3'], notes: ['E', 'G', 'B'] },
+      { name: 'F', fullName: 'Fa trưởng (F Major)', keys: ['f/2', 'a/2', 'c/3'], notes: ['F', 'A', 'C'] },
+      { name: 'G', fullName: 'Sol trưởng (G Major)', keys: ['g/2', 'b/2', 'd/3'], notes: ['G', 'B', 'D'] },
+      { name: 'Am', fullName: 'La thứ (A Minor)', keys: ['a/2', 'c/3', 'e/3'], notes: ['A', 'C', 'E'] }
+    ]
+  };
+
+  /**
+   * Generate a random chord question
+   */
+  function generateChord(clefMode = 'mixed') {
+    let activeClef = clefMode;
+    if (clefMode === 'mixed') {
+      activeClef = Math.random() < 0.5 ? 'treble' : 'bass';
+    }
+
+    const pool = CHORD_DEFINITIONS[activeClef] || CHORD_DEFINITIONS.treble;
+    const chord = pool[Math.floor(Math.random() * pool.length)];
+
+    const noteDetails = chord.keys.map((k, idx) => {
+      const [step, oct] = k.split('/');
+      const meta = NOTE_META[step.toLowerCase()];
+      return {
+        key: k,
+        letter: chord.notes[idx],
+        solfege: meta.solfege,
+        frequency: keyToFrequency(k)
+      };
+    });
+
+    return {
+      type: 'chord',
+      clef: activeClef,
+      chordName: chord.name,
+      chordFullName: chord.fullName,
+      keys: chord.keys,
+      notes: noteDetails,
+      targetLetters: chord.notes,
+      frequencies: noteDetails.map(n => n.frequency)
+    };
+  }
+
   /**
    * Normalize user input note
    * Matches both 'C#' and 'Db', or matches step if non-accidental
@@ -200,9 +256,11 @@
     NOTE_META,
     NATURAL_POOLS,
     ACCIDENTAL_POOLS,
+    CHORD_DEFINITIONS,
     RPG_LEVELS,
     keyToFrequency,
     generateSequence,
+    generateChord,
     matchInput,
     getRpgLevel
   };

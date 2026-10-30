@@ -18,6 +18,7 @@
     intervalSeconds: 5,
     clefMode: 'mixed', // 'treble' | 'bass' | 'mixed'
     seqLength: 3,
+    drillMode: 'notes', // 'notes' | 'chords'
     allowAccidentals: false,
     gameMode: 'custom', // 'custom' | 'rpg'
     xp: 0,
@@ -483,6 +484,7 @@
         <div class="card-header" id="card-header">
           <div class="brand-meta-row">
             <span class="clef-badge" id="clef-badge">${clefLabel}</span>
+            ${state.currentSequence && state.currentSequence.type === 'chord' ? `<span class="rpg-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);" title="${state.currentSequence.chordFullName}">🎼 ${state.currentSequence.chordName}</span>` : ''}
             ${isRpgMode ? `<span class="rpg-badge" title="Cấp độ RPG: ${rpgInfo.current.title}">Lv.${rpgInfo.current.level}</span>` : ''}
             <span class="streak-badge" title="Chuỗi đúng">🔥 <span id="streak-count">${state.settings.streak || 0}</span></span>
             ${state.isMidiConnected ? `<span class="midi-badge" title="Đã kết nối: ${state.midiDeviceName}">🎹 MIDI</span>` : ''}
@@ -653,37 +655,60 @@
     stave.addClef(clef);
     stave.setContext(context).draw();
 
-    const staveNotes = notesData.map((n, i) => {
-      const note = new VexFlow.StaveNote({
+    if (state.currentSequence.type === 'chord') {
+      // Render Single Stacked Chord
+      const chordNote = new VexFlow.StaveNote({
         clef: clef,
-        keys: [n.key],
-        duration: n.duration
+        keys: state.currentSequence.keys,
+        duration: 'w'
       });
 
-      // Add accidental modifier if present (e.g. '#' or 'b')
-      if (n.accidental) {
-        note.addModifier(new VexFlow.Accidental(n.accidental), 0);
-      }
-
-      if (i < state.userInputs.length) {
-        if (MusicEngine.matchInput(state.userInputs[i], n)) {
-          note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
-        } else {
-          note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' });
-        }
+      // Highlight logic
+      if (state.userInputs.length === state.currentSequence.targetLetters.length) {
+        chordNote.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
       } else if (state.isAnswerRevealed) {
-        note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
+        chordNote.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
       }
 
-      return note;
-    });
+      const voice = new VexFlow.Voice({ num_beats: 4, beat_value: 4 });
+      voice.setStrict(false);
+      voice.addTickables([chordNote]);
 
-    const voice = new VexFlow.Voice({ num_beats: notesData.length, beat_value: 4 });
-    voice.setStrict(false);
-    voice.addTickables(staveNotes);
+      new VexFlow.Formatter().joinVoices([voice]).format([voice], width - 120);
+      voice.draw(context, stave);
+    } else {
+      // Render Note Sequence
+      const staveNotes = notesData.map((n, i) => {
+        const note = new VexFlow.StaveNote({
+          clef: clef,
+          keys: [n.key],
+          duration: n.duration
+        });
 
-    new VexFlow.Formatter().joinVoices([voice]).format([voice], width - 90);
-    voice.draw(context, stave);
+        if (n.accidental) {
+          note.addModifier(new VexFlow.Accidental(n.accidental), 0);
+        }
+
+        if (i < state.userInputs.length) {
+          if (MusicEngine.matchInput(state.userInputs[i], n)) {
+            note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
+          } else {
+            note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' });
+          }
+        } else if (state.isAnswerRevealed) {
+          note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
+        }
+
+        return note;
+      });
+
+      const voice = new VexFlow.Voice({ num_beats: notesData.length, beat_value: 4 });
+      voice.setStrict(false);
+      voice.addTickables(staveNotes);
+
+      new VexFlow.Formatter().joinVoices([voice]).format([voice], width - 90);
+      voice.draw(context, stave);
+    }
 
     renderSlots();
   }
@@ -749,6 +774,9 @@
       renderStave();
 
       if (state.userInputs.length === notes.length) {
+        if (state.currentSequence.type === 'chord' && window.AudioSynth && window.AudioSynth.playChord) {
+          window.AudioSynth.playChord(state.currentSequence.frequencies, 1.0);
+        }
         saveSettings({ noteStats });
         handleSequenceSuccess();
       }
@@ -841,12 +869,16 @@
       allowAccidentals = rpg.accidentals;
     }
 
-    state.currentSequence = MusicEngine.generateSequence({
-      clefMode: clefMode,
-      length: length,
-      allowAccidentals: allowAccidentals,
-      noteStats: state.settings.noteStats
-    });
+    if (state.settings.gameMode !== 'rpg' && state.settings.drillMode === 'chords') {
+      state.currentSequence = MusicEngine.generateChord(clefMode);
+    } else {
+      state.currentSequence = MusicEngine.generateSequence({
+        clefMode: clefMode,
+        length: length,
+        allowAccidentals: allowAccidentals,
+        noteStats: state.settings.noteStats
+      });
+    }
     state.userInputs = [];
     state.isAnswerRevealed = false;
     resetTimer(intervalSec);
