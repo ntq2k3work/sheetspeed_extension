@@ -27,6 +27,8 @@
     bestStreak: 0,
     totalAnswered: 0,
     totalCorrect: 0,
+    sprintBestScore: 0,
+    sprintBestSpeed: '0.00',
     noteStats: {} // { 'c/4': { correct: 10, total: 12 }, ... }
   };
 

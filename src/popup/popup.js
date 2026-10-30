@@ -20,6 +20,8 @@
     bestStreak: 0,
     totalAnswered: 0,
     totalCorrect: 0,
+    sprintBestScore: 0,
+    sprintBestSpeed: '0.00',
     noteStats: {}
   };
 
@@ -29,7 +31,17 @@
     userInputs: [],
     timerId: null,
     isAnswerRevealed: false,
-    isFever: false
+    isFever: false,
+    sprint: {
+      isActive: false,
+      isFinished: false,
+      timeLeft: '60.0',
+      timerInterval: null,
+      correctCount: 0,
+      totalCount: 0,
+      startTime: null,
+      results: null
+    }
   };
 
   // DOM Elements
@@ -61,6 +73,8 @@
   const popupSlotsContainer = document.getElementById('popup-slots-container');
   const heatmapGrid = document.getElementById('heatmap-grid');
   const practiceCard = document.getElementById('practice-card');
+  const sprintOverlayContainer = document.getElementById('sprint-overlay-container');
+  const practiceMainContent = document.getElementById('practice-main-content');
 
   function init() {
     loadSettings(() => {
@@ -123,7 +137,7 @@
     setSegmentActive('control-length', String(state.settings.seqLength));
 
     if (customOptions) {
-      customOptions.style.display = state.settings.gameMode === 'rpg' ? 'none' : 'block';
+      customOptions.style.display = state.settings.gameMode === 'custom' ? 'block' : 'none';
     }
   }
 
@@ -146,7 +160,15 @@
     }
     if (rpgXpFill) rpgXpFill.style.width = `${rpg.progress}%`;
     if (popupModeTag) {
-      popupModeTag.textContent = state.settings.gameMode === 'rpg' ? `Lv.${rpg.current.level}` : 'Tự do';
+      if (state.settings.gameMode === 'rpg') {
+        popupModeTag.textContent = `Lv.${rpg.current.level}`;
+      } else if (state.settings.gameMode === 'sprint') {
+        popupModeTag.textContent = state.sprint.isActive 
+          ? `⏱️ ${state.sprint.timeLeft}s | 🎯 ${state.sprint.correctCount}`
+          : '⏱️ 60s Sprint';
+      } else {
+        popupModeTag.textContent = 'Tự do';
+      }
     }
   }
 
@@ -155,6 +177,12 @@
     if (statStreak) statStreak.textContent = s.streak || 0;
     if (statBest) statBest.textContent = s.bestStreak || 0;
     if (statTotal) statTotal.textContent = s.totalAnswered || 0;
+
+    const statSprint = document.getElementById('stat-sprint');
+    if (statSprint) {
+      statSprint.textContent = s.sprintBestScore || 0;
+      statSprint.title = `Kỷ lục: ${s.sprintBestScore || 0} câu (${s.sprintBestSpeed || '0.00'}s/câu)`;
+    }
 
     const acc = s.totalAnswered > 0 
       ? Math.round((s.totalCorrect / s.totalAnswered) * 100) 
@@ -221,10 +249,15 @@
       });
     }
 
-    // Game mode switch (RPG vs Custom)
+    // Game mode switch (Custom vs RPG vs Sprint)
     setupSegmentGroup('control-gamemode', (val) => {
       saveSettings({ gameMode: val });
-      if (customOptions) customOptions.style.display = val === 'rpg' ? 'none' : 'block';
+      if (customOptions) customOptions.style.display = val === 'custom' ? 'block' : 'none';
+      if (val !== 'sprint') {
+        state.sprint.isActive = false;
+        state.sprint.isFinished = false;
+        clearInterval(state.sprint.timerInterval);
+      }
       nextQuestion();
     });
 
@@ -344,6 +377,13 @@
   function nextQuestion() {
     if (!window.MusicEngine) return;
 
+    if (state.settings.gameMode === 'sprint') {
+      if (!state.sprint.isActive) {
+        renderSprintOverlay();
+        return;
+      }
+    }
+
     let clefMode = state.settings.clefMode;
     let length = state.settings.seqLength || 3;
     let intervalSec = state.settings.intervalSeconds || 5;
@@ -355,9 +395,11 @@
       length = rpg.length;
       intervalSec = rpg.interval;
       allowAccidentals = rpg.accidentals;
+    } else if (state.settings.gameMode === 'sprint') {
+      length = 1; // 1 note at a time for high speed sprint
     }
 
-    if (state.settings.gameMode !== 'rpg' && state.settings.drillMode === 'chords') {
+    if (state.settings.gameMode !== 'rpg' && state.settings.gameMode !== 'sprint' && state.settings.drillMode === 'chords') {
       state.currentSequence = MusicEngine.generateChord(clefMode);
     } else {
       state.currentSequence = MusicEngine.generateSequence({
@@ -380,7 +422,12 @@
     }
 
     renderStave();
-    resetTimer(intervalSec);
+
+    if (state.settings.gameMode === 'sprint') {
+      renderSprintOverlay();
+    } else {
+      resetTimer(intervalSec);
+    }
   }
 
   function renderStave() {
@@ -515,6 +562,52 @@
 
   function handleNoteInput(inputNote) {
     if (!state.currentSequence || state.isAnswerRevealed) return;
+
+    // Sprint Mode Branch
+    if (state.settings.gameMode === 'sprint') {
+      if (!state.sprint.isActive) return;
+      const notes = state.currentSequence.notes;
+      const currentNote = notes[0];
+      const isCorrect = MusicEngine.matchInput(inputNote, currentNote);
+
+      const noteStats = { ...(state.settings.noteStats || {}) };
+      if (!noteStats[currentNote.key]) {
+        noteStats[currentNote.key] = { correct: 0, total: 0 };
+      }
+      noteStats[currentNote.key].total += 1;
+      state.sprint.totalCount += 1;
+
+      if (isCorrect) {
+        noteStats[currentNote.key].correct += 1;
+        state.sprint.correctCount += 1;
+        state.userInputs = [inputNote];
+
+        if (window.AudioSynth) {
+          window.AudioSynth.playNote(currentNote.frequency, 0.25);
+        }
+        renderStave();
+
+        if (popupModeTag) {
+          popupModeTag.textContent = `⏱️ ${state.sprint.timeLeft.toFixed(1)}s (${state.sprint.correctCount})`;
+        }
+
+        saveSettings({ noteStats });
+        setTimeout(nextQuestion, 40);
+      } else {
+        state.userInputs = [inputNote];
+        if (window.AudioSynth) window.AudioSynth.playSoftMiss();
+        renderStave();
+
+        saveSettings({ noteStats });
+        state.isAnswerRevealed = true;
+        setTimeout(() => {
+          renderStave();
+          setTimeout(nextQuestion, 180);
+        }, 120);
+      }
+      return;
+    }
+
     const currentIndex = state.userInputs.length;
     const notes = state.currentSequence.notes;
     if (currentIndex >= notes.length) return;
@@ -610,6 +703,168 @@
     });
 
     setTimeout(nextQuestion, 700);
+  }
+
+  function renderSprintOverlay() {
+    if (!sprintOverlayContainer || !practiceMainContent) return;
+
+    if (state.settings.gameMode !== 'sprint') {
+      sprintOverlayContainer.innerHTML = '';
+      sprintOverlayContainer.style.display = 'none';
+      practiceMainContent.style.display = 'block';
+      return;
+    }
+
+    if (!state.sprint.isActive && !state.sprint.isFinished) {
+      practiceMainContent.style.display = 'none';
+      sprintOverlayContainer.style.display = 'block';
+      const bestScore = state.settings.sprintBestScore || 0;
+      const bestSpeed = state.settings.sprintBestSpeed || '0.00';
+
+      sprintOverlayContainer.innerHTML = `
+        <div class="sprint-ready-overlay">
+          <div class="sprint-ready-icon">⚡⏱️</div>
+          <h3>Thử Thách Tốc Độ 60 Giây</h3>
+          <p>Giải nốt liên tục trong 1 phút! Hệ thống tính tổng số câu đúng và tốc độ phản xạ trung bình (giây/câu).</p>
+          <div class="sprint-record-pill">
+            🏆 Kỷ lục: <strong>${bestScore} câu</strong> (${bestSpeed}s/câu)
+          </div>
+          <button type="button" class="sprint-start-btn" id="sprint-start-action-btn">BẮT ĐẦU 60S 🚀</button>
+        </div>
+      `;
+
+      const startBtn = document.getElementById('sprint-start-action-btn');
+      if (startBtn) {
+        startBtn.addEventListener('click', startSprint);
+      }
+    } else if (state.sprint.isActive) {
+      sprintOverlayContainer.innerHTML = '';
+      sprintOverlayContainer.style.display = 'none';
+      practiceMainContent.style.display = 'block';
+      if (popupModeTag) {
+        popupModeTag.textContent = `⏱️ ${state.sprint.timeLeft.toFixed(1)}s (${state.sprint.correctCount})`;
+      }
+    } else if (state.sprint.isFinished) {
+      practiceMainContent.style.display = 'none';
+      sprintOverlayContainer.style.display = 'block';
+
+      const total = state.sprint.totalCount;
+      const correct = state.sprint.correctCount;
+      const acc = total > 0 ? Math.round((correct / total) * 100) : 0;
+      const avgSpeed = (60.0 / Math.max(1, total)).toFixed(2);
+      const isNewRecord = correct > (state.settings.sprintBestScore || 0) && correct > 0;
+
+      sprintOverlayContainer.innerHTML = `
+        <div class="sprint-result-overlay">
+          <div class="sprint-result-badge">HẾT GIỜ 60S!</div>
+          ${isNewRecord ? '<div class="sprint-new-record">🎉 KỶ LỤC MỚI ĐƯỢC THIẾT LẬP! 🎉</div>' : ''}
+          <div class="sprint-result-grid">
+            <div class="result-cell highlight">
+              <span class="result-num">${correct}</span>
+              <span class="result-label">Số câu đúng</span>
+            </div>
+            <div class="result-cell">
+              <span class="result-num">${avgSpeed}s</span>
+              <span class="result-label">Tốc độ TB / câu</span>
+            </div>
+            <div class="result-cell">
+              <span class="result-num">${acc}%</span>
+              <span class="result-label">Độ chính xác</span>
+            </div>
+          </div>
+          <div class="sprint-action-row">
+            <button type="button" class="sprint-retry-btn" id="sprint-retry-action-btn">Thử lại 60s 🔄</button>
+            <button type="button" class="sprint-exit-btn" id="sprint-exit-action-btn">Về Tự do</button>
+          </div>
+        </div>
+      `;
+
+      const retryBtn = document.getElementById('sprint-retry-action-btn');
+      if (retryBtn) retryBtn.addEventListener('click', startSprint);
+
+      const exitBtn = document.getElementById('sprint-exit-action-btn');
+      if (exitBtn) {
+        exitBtn.addEventListener('click', () => {
+          saveSettings({ gameMode: 'custom' });
+          updateUIWithSettings();
+          if (customOptions) customOptions.style.display = 'block';
+          state.sprint.isActive = false;
+          state.sprint.isFinished = false;
+          sprintOverlayContainer.innerHTML = '';
+          sprintOverlayContainer.style.display = 'none';
+          practiceMainContent.style.display = 'block';
+          nextQuestion();
+        });
+      }
+    }
+  }
+
+  function startSprint() {
+    state.sprint.isActive = true;
+    state.sprint.isFinished = false;
+    state.sprint.timeLeft = 60.0;
+    state.sprint.correctCount = 0;
+    state.sprint.totalCount = 0;
+    renderSprintOverlay();
+    startSprintTimer();
+    nextQuestion();
+  }
+
+  function startSprintTimer() {
+    clearInterval(state.sprint.timerInterval);
+    clearInterval(state.timerId);
+    const totalDurationMs = 60000;
+    const startTime = Date.now();
+
+    state.sprint.timerInterval = setInterval(() => {
+      const elapsedMs = Date.now() - startTime;
+      const remainingMs = Math.max(0, totalDurationMs - elapsedMs);
+      state.sprint.timeLeft = remainingMs / 1000;
+
+      if (popupTimerBar) {
+        popupTimerBar.style.width = `${(remainingMs / totalDurationMs) * 100}%`;
+      }
+      if (popupModeTag) {
+        popupModeTag.textContent = `⏱️ ${state.sprint.timeLeft.toFixed(1)}s (${state.sprint.correctCount})`;
+      }
+
+      if (remainingMs <= 0) {
+        finishSprint();
+      }
+    }, 100);
+  }
+
+  function finishSprint() {
+    clearInterval(state.sprint.timerInterval);
+    state.sprint.isActive = false;
+    state.sprint.isFinished = true;
+    state.sprint.timeLeft = 0;
+
+    const total = state.sprint.totalCount;
+    const correct = state.sprint.correctCount;
+    const avgSpeed = (60.0 / Math.max(1, total)).toFixed(2);
+
+    const oldBestScore = state.settings.sprintBestScore || 0;
+    const isNewRecord = correct > oldBestScore;
+    const newBestScore = Math.max(oldBestScore, correct);
+    const newBestSpeed = isNewRecord ? avgSpeed : (state.settings.sprintBestSpeed || avgSpeed);
+
+    const newTotalAnswered = (state.settings.totalAnswered || 0) + total;
+    const newTotalCorrect = (state.settings.totalCorrect || 0) + correct;
+
+    if (window.AudioSynth) {
+      if (isNewRecord) window.AudioSynth.playLevelUp();
+      else window.AudioSynth.playSuccess();
+    }
+
+    saveSettings({
+      sprintBestScore: newBestScore,
+      sprintBestSpeed: newBestSpeed,
+      totalAnswered: newTotalAnswered,
+      totalCorrect: newTotalCorrect
+    });
+
+    renderSprintOverlay();
   }
 
   function startTimer(intervalSec) {

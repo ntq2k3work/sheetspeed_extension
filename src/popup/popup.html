@@ -56,25 +56,27 @@
         <span class="stat-num" id="stat-accuracy">100%</span>
         <span class="stat-label">🎯 Độ chuẩn</span>
       </div>
-      <div class="stat-item">
-        <span class="stat-num" id="stat-total">0</span>
-        <span class="stat-label">📊 Đã giải</span>
+      <div class="stat-item" title="Kỷ lục 1 Phút (Speed Sprint)">
+        <span class="stat-num" id="stat-sprint">0</span>
+        <span class="stat-label">⏱️ Kỷ lục 60s</span>
       </div>
     </section>
 
     <!-- Focus Practice Area (Play right inside popup) -->
     <section class="practice-card" id="practice-card">
-      <div class="practice-header">
-        <div class="practice-tags">
-          <span class="clef-tag" id="popup-clef-tag">Khóa Sol 𝄞</span>
-          <span class="mode-tag" id="popup-mode-tag">RPG</span>
+      <div id="sprint-overlay-container"></div>
+      <div class="practice-main-content" id="practice-main-content">
+        <div class="practice-header">
+          <div class="practice-tags">
+            <span class="clef-tag" id="popup-clef-tag">Khóa Sol 𝄞</span>
+            <span class="mode-tag" id="popup-mode-tag">RPG</span>
+          </div>
+          <div class="popup-timer-wrap">
+            <div class="popup-timer-bar" id="popup-timer-bar"></div>
+          </div>
         </div>
-        <div class="popup-timer-wrap">
-          <div class="popup-timer-bar" id="popup-timer-bar"></div>
-        </div>
-      </div>
-      
-      <div class="stave-box" id="popup-stave-container"></div>
+        
+        <div class="stave-box" id="popup-stave-container"></div>
       
       <div class="slots-box" id="popup-slots-container"></div>
 
@@ -100,6 +102,7 @@
             <button class="key-btn p-key-black" data-key="A#">A#<small>B♭</small></button>
           </div>
         </div>
+      </div>
       </div>
     </section>
 
@@ -127,8 +130,9 @@
         <div class="form-group">
           <label>Chế độ chơi (Game Mode)</label>
           <div class="segmented-control" id="control-gamemode">
-            <button type="button" class="segment active" data-val="custom">Tự do (Custom)</button>
-            <button type="button" class="segment" data-val="rpg">RPG Lên Cấp (Levels)</button>
+            <button type="button" class="segment active" data-val="custom">Tự do</button>
+            <button type="button" class="segment" data-val="rpg">RPG Level</button>
+            <button type="button" class="segment" data-val="sprint">⏱️ Tốc độ 1 Phút</button>
           </div>
         </div>
 
