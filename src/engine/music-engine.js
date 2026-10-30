@@ -138,7 +138,7 @@
       const [stepWithAcc, octave] = key.split('/');
       const meta = NOTE_META[stepWithAcc.toLowerCase()];
       const hasSharp = stepWithAcc.includes('#');
-      const hasFlat = stepWithAcc.includes('b');
+      const hasFlat = stepWithAcc.length > 1 && stepWithAcc.endsWith('b');
 
       notes.push({
         index: i,

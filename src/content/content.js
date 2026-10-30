@@ -688,7 +688,7 @@
         const step = k.split('/')[0];
         if (step.includes('#')) {
           chordNote.addModifier(new VexFlow.Accidental('#'), idx);
-        } else if (step.includes('b')) {
+        } else if (step.length > 1 && step.endsWith('b')) {
           chordNote.addModifier(new VexFlow.Accidental('b'), idx);
         }
       });
