@@ -1,6 +1,11 @@
 /**
- * SheetSpeed - Content Script (Gentle Mode Floating Widget)
- * Injected into web pages, encapsulated inside an isolated Shadow DOM.
+ * SheetSpeed - Content Script 2.0 (Gentle Mode Floating Widget)
+ * Encapsulated inside an isolated Shadow DOM.
+ * Features:
+ * - Web MIDI Controller Integration (USB Piano/Keyboard input)
+ * - Accidentals (♯ / ♭) with piano keyboard (White & Black keys)
+ * - RPG Mode & Combo Fever lighting
+ * - Spaced Repetition (recording stats per note key)
  */
 
 (function () {
@@ -13,11 +18,15 @@
     intervalSeconds: 5,
     clefMode: 'mixed', // 'treble' | 'bass' | 'mixed'
     seqLength: 3,
+    allowAccidentals: false,
+    gameMode: 'custom', // 'custom' | 'rpg'
+    xp: 0,
     isMuted: false,
     streak: 0,
     bestStreak: 0,
     totalAnswered: 0,
-    totalCorrect: 0
+    totalCorrect: 0,
+    noteStats: {} // { 'c/4': { correct: 10, total: 12 }, ... }
   };
 
   let state = {
@@ -25,10 +34,12 @@
     currentSequence: null,
     userInputs: [],
     timerId: null,
-    timeLeft: 5,
     isPaused: false,
     isMinimized: false,
-    isAnswerRevealed: false
+    isAnswerRevealed: false,
+    isFever: false,
+    midiDeviceName: '',
+    isMidiConnected: false
   };
 
   // Create Root & Shadow DOM
@@ -37,7 +48,6 @@
   document.body.appendChild(root);
   const shadow = root.attachShadow({ mode: 'open' });
 
-  // Load Settings from chrome.storage
   function loadSettings(callback) {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       chrome.storage.local.get(DEFAULT_SETTINGS, (stored) => {
@@ -59,36 +69,6 @@
     }
   }
 
-  // Setup Fonts
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-    const fontBravuraUrl = chrome.runtime.getURL('lib/fonts/bravura.woff2');
-    const fontAcademicoUrl = chrome.runtime.getURL('lib/fonts/academico.woff2');
-
-    if (window.VexFlow && window.VexFlow.Font) {
-      window.VexFlow.Font.HOST_URL = chrome.runtime.getURL('lib/fonts/');
-    }
-
-    if (!document.getElementById('sheetspeed-font-face')) {
-      const fontStyle = document.createElement('style');
-      fontStyle.id = 'sheetspeed-font-face';
-      fontStyle.textContent = `
-        @font-face {
-          font-family: 'Bravura';
-          src: url('${fontBravuraUrl}') format('woff2');
-          font-weight: normal;
-          font-style: normal;
-        }
-        @font-face {
-          font-family: 'Academico';
-          src: url('${fontAcademicoUrl}') format('woff2');
-          font-weight: normal;
-          font-style: normal;
-        }
-      `;
-      document.head.appendChild(fontStyle);
-    }
-  }
-
   // Shadow DOM Styles
   const style = document.createElement('style');
   style.textContent = `
@@ -101,11 +81,11 @@
     }
 
     .widget-bubble {
-      width: 52px;
-      height: 52px;
+      width: 54px;
+      height: 54px;
       border-radius: 50%;
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4), 0 2px 6px rgba(0,0,0,0.2);
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45), 0 2px 6px rgba(0,0,0,0.2);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -124,14 +104,14 @@
       position: absolute;
       top: -3px;
       left: -3px;
-      width: 58px;
-      height: 58px;
+      width: 60px;
+      height: 60px;
       transform: rotate(-90deg);
       pointer-events: none;
     }
     .widget-bubble circle {
       fill: none;
-      stroke-width: 3;
+      stroke-width: 3.5;
       stroke-linecap: round;
     }
     .widget-bubble .ring-bg {
@@ -139,25 +119,32 @@
     }
     .widget-bubble .ring-progress {
       stroke: #10b981;
-      stroke-dasharray: 163;
+      stroke-dasharray: 169;
       stroke-dashoffset: 0;
       transition: stroke-dashoffset 0.1s linear;
     }
 
     /* Main Card */
     .widget-card {
-      width: 360px;
-      background: rgba(24, 28, 38, 0.95);
+      width: 380px;
+      background: rgba(24, 28, 38, 0.96);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 16px;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0,0,0,0.2);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0,0,0,0.2);
       overflow: hidden;
       display: flex;
       flex-direction: column;
       color: #f1f5f9;
-      font-family: inherit;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    /* Fever Glow Effect */
+    .widget-card.fever-mode {
+      border-color: #f59e0b;
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.45), 0 16px 36px rgba(0,0,0,0.4);
     }
 
     /* Top Progress Bar */
@@ -176,10 +163,13 @@
     .timer-bar.paused {
       background: #f59e0b;
     }
+    .timer-bar.fever {
+      background: linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6);
+    }
 
     /* Header */
     .card-header {
-      padding: 10px 14px;
+      padding: 9px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -190,57 +180,72 @@
     .card-header:active {
       cursor: grabbing;
     }
-    .brand-title {
+    .brand-meta-row {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-weight: 700;
-      font-size: 13px;
-      letter-spacing: 0.5px;
-      color: #cbd5e1;
+      gap: 5px;
+      font-size: 11px;
     }
     .clef-badge {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 8px;
       font-weight: 600;
       background: rgba(99, 102, 241, 0.2);
       color: #a5b4fc;
       border: 1px solid rgba(99, 102, 241, 0.4);
     }
+    .rpg-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
     .streak-badge {
       display: inline-flex;
       align-items: center;
       gap: 3px;
-      padding: 2px 7px;
-      border-radius: 12px;
-      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 8px;
       font-weight: 700;
       background: rgba(245, 158, 11, 0.18);
       color: #fbbf24;
       border: 1px solid rgba(245, 158, 11, 0.4);
     }
+    .midi-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 5px;
+      border-radius: 8px;
+      font-size: 10px;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
 
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
     }
     .action-btn {
       background: transparent;
       border: none;
       color: #94a3b8;
       cursor: pointer;
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
+      font-size: 12px;
       transition: background 0.15s, color 0.15s;
     }
     .action-btn:hover {
@@ -248,17 +253,16 @@
       color: #ffffff;
     }
 
-    /* Stave Score Canvas / SVG */
+    /* Stave Wrapper */
     .stave-wrapper {
-      padding: 8px 12px 2px;
+      padding: 6px 10px 2px;
       background: #ffffff;
-      margin: 10px 12px 6px;
+      margin: 8px 12px 6px;
       border-radius: 10px;
-      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.12);
       display: flex;
       justify-content: center;
       align-items: center;
-      position: relative;
     }
     .stave-wrapper svg {
       display: block;
@@ -266,34 +270,34 @@
       height: auto !important;
     }
 
-    /* Input Progress Slots */
+    /* Slots */
     .slots-container {
       display: flex;
       justify-content: center;
-      gap: 10px;
-      margin: 6px 0 10px;
+      gap: 8px;
+      margin: 4px 0 8px;
     }
     .note-slot {
-      width: 38px;
-      height: 38px;
+      width: 36px;
+      height: 36px;
       border-radius: 8px;
       border: 2px dashed rgba(255, 255, 255, 0.2);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       color: #94a3b8;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       background: rgba(255, 255, 255, 0.03);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .note-slot.active {
       border-color: #6366f1;
       border-style: solid;
-      background: rgba(99, 102, 241, 0.15);
+      background: rgba(99, 102, 241, 0.2);
       color: #fff;
-      box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
       transform: scale(1.05);
     }
     .note-slot.correct {
@@ -307,75 +311,116 @@
       border-style: solid;
       background: rgba(239, 68, 68, 0.2);
       color: #f87171;
-      animation: slot-shake 0.3s ease;
     }
     .note-slot .slot-solfege {
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 500;
       opacity: 0.8;
     }
 
-    @keyframes slot-shake {
-      0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-4px); }
-      75% { transform: translateX(4px); }
-    }
-
-    /* Virtual Keyboard */
-    .keyboard-container {
-      padding: 0 12px 12px;
+    /* Piano Keyboard (White + Black Keys) */
+    .piano-wrapper {
+      padding: 0 12px 10px;
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
-    .key-row {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 5px;
-    }
-    .note-btn {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+    .piano-keys-layout {
+      position: relative;
+      display: flex;
+      height: 52px;
+      background: rgba(0,0,0,0.3);
       border-radius: 8px;
-      padding: 7px 0;
-      color: #f1f5f9;
-      cursor: pointer;
+      padding: 2px;
+    }
+    /* White keys */
+    .white-keys {
+      display: flex;
+      width: 100%;
+      gap: 2px;
+    }
+    .p-key-white {
+      flex: 1;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      transition: all 0.12s ease;
-    }
-    .note-btn:hover {
-      background: rgba(99, 102, 241, 0.3);
-      border-color: #6366f1;
-      transform: translateY(-1px);
-    }
-    .note-btn:active {
-      transform: translateY(1px);
-      background: #6366f1;
-    }
-    .note-btn .btn-letter {
+      justify-content: flex-end;
+      padding-bottom: 4px;
+      cursor: pointer;
+      color: #1e293b;
       font-weight: 700;
-      font-size: 13px;
+      font-size: 11px;
+      transition: background 0.1s, transform 0.08s;
+      position: relative;
+      z-index: 1;
     }
-    .note-btn .btn-solfege {
-      font-size: 9px;
-      color: #94a3b8;
+    .p-key-white:hover {
+      background: #e2e8f0;
+    }
+    .p-key-white:active {
+      background: #93c5fd;
+      transform: translateY(1px);
+    }
+    .p-key-white small {
+      font-size: 8px;
+      color: #64748b;
+      font-weight: 500;
     }
 
-    .key-controls-row {
+    /* Black keys container */
+    .black-keys {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      right: 2px;
+      height: 32px;
+      pointer-events: none;
+      display: flex;
+      z-index: 2;
+    }
+    .p-key-black {
+      pointer-events: auto;
+      position: absolute;
+      width: 10.5%;
+      height: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 0 0 3px 3px;
+      color: #f8fafc;
+      cursor: pointer;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 3px;
+      font-size: 8px;
+      font-weight: 700;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+      transition: background 0.1s, transform 0.08s;
+    }
+    .p-key-black:hover {
+      background: #334155;
+    }
+    .p-key-black:active {
+      background: #6366f1;
+      transform: translateY(1px);
+    }
+    /* Black keys positions */
+    .p-key-black[data-key="C#"] { left: 9.5%; }
+    .p-key-black[data-key="D#"] { left: 23.5%; }
+    .p-key-black[data-key="F#"] { left: 52%; }
+    .p-key-black[data-key="G#"] { left: 66%; }
+    .p-key-black[data-key="A#"] { left: 80%; }
+
+    .bottom-info-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 11px;
+      font-size: 10px;
       color: #64748b;
-      padding-top: 2px;
-    }
-    .hint-text {
-      display: flex;
-      align-items: center;
-      gap: 4px;
+      padding: 0 2px;
     }
     .hint-kbd {
       background: rgba(255, 255, 255, 0.1);
@@ -390,9 +435,8 @@
       color: #94a3b8;
       cursor: pointer;
       font-size: 11px;
-      padding: 2px 6px;
+      padding: 2px 4px;
       border-radius: 4px;
-      transition: color 0.15s;
     }
     .skip-btn:hover {
       color: #e2e8f0;
@@ -401,21 +445,17 @@
   `;
   shadow.appendChild(style);
 
-  // Widget Container
   const container = document.createElement('div');
   container.className = 'sheetspeed-container';
   shadow.appendChild(container);
 
-  /**
-   * Render the HTML structure
-   */
   function buildWidgetDOM() {
     if (state.isMinimized) {
       container.innerHTML = `
         <div class="widget-bubble" id="btn-expand" title="SheetSpeed: Mở rộng">
           <svg class="bubble-ring">
-            <circle class="ring-bg" cx="29" cy="29" r="26"></circle>
-            <circle class="ring-progress" id="bubble-progress" cx="29" cy="29" r="26"></circle>
+            <circle class="ring-bg" cx="30" cy="30" r="27"></circle>
+            <circle class="ring-progress" id="bubble-progress" cx="30" cy="30" r="27"></circle>
           </svg>
           <div class="bubble-icon">🎵</div>
         </div>
@@ -432,21 +472,26 @@
       ? 'Khóa Sol 𝄞' 
       : 'Khóa Fa 𝄢';
 
+    const rpgInfo = MusicEngine.getRpgLevel(state.settings.xp || 0);
+    const isRpgMode = state.settings.gameMode === 'rpg';
+
     container.innerHTML = `
-      <div class="widget-card" id="widget-card">
+      <div class="widget-card ${state.isFever ? 'fever-mode' : ''}" id="widget-card">
         <div class="timer-bar-wrap">
-          <div class="timer-bar ${state.isPaused ? 'paused' : ''}" id="timer-bar"></div>
+          <div class="timer-bar ${state.isPaused ? 'paused' : ''} ${state.isFever ? 'fever' : ''}" id="timer-bar"></div>
         </div>
         <div class="card-header" id="card-header">
-          <div class="brand-title">
+          <div class="brand-meta-row">
             <span class="clef-badge" id="clef-badge">${clefLabel}</span>
-            <span class="streak-badge" title="Chuỗi đúng liên tiếp">🔥 <span id="streak-count">${state.settings.streak || 0}</span></span>
+            ${isRpgMode ? `<span class="rpg-badge" title="Cấp độ RPG: ${rpgInfo.current.title}">Lv.${rpgInfo.current.level}</span>` : ''}
+            <span class="streak-badge" title="Chuỗi đúng">🔥 <span id="streak-count">${state.settings.streak || 0}</span></span>
+            ${state.isMidiConnected ? `<span class="midi-badge" title="Đã kết nối: ${state.midiDeviceName}">🎹 MIDI</span>` : ''}
           </div>
           <div class="header-actions">
             <button class="action-btn" id="btn-pause" title="${state.isPaused ? 'Tiếp tục' : 'Tạm dừng'}">
               ${state.isPaused ? '▶' : '⏸'}
             </button>
-            <button class="action-btn" id="btn-sound" title="${state.settings.isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}">
+            <button class="action-btn" id="btn-sound" title="${state.settings.isMuted ? 'Bật âm' : 'Tắt âm'}">
               ${state.settings.isMuted ? '🔇' : '🔊'}
             </button>
             <button class="action-btn" id="btn-minimize" title="Thu nhỏ">−</button>
@@ -458,18 +503,29 @@
 
         <div class="slots-container" id="slots-container"></div>
 
-        <div class="keyboard-container">
-          <div class="key-row">
-            <button class="note-btn" data-key="C"><span class="btn-letter">C</span><span class="btn-solfege">Đô</span></button>
-            <button class="note-btn" data-key="D"><span class="btn-letter">D</span><span class="btn-solfege">Rê</span></button>
-            <button class="note-btn" data-key="E"><span class="btn-letter">E</span><span class="btn-solfege">Mi</span></button>
-            <button class="note-btn" data-key="F"><span class="btn-letter">F</span><span class="btn-solfege">Fa</span></button>
-            <button class="note-btn" data-key="G"><span class="btn-letter">G</span><span class="btn-solfege">Sol</span></button>
-            <button class="note-btn" data-key="A"><span class="btn-letter">A</span><span class="btn-solfege">La</span></button>
-            <button class="note-btn" data-key="B"><span class="btn-letter">B</span><span class="btn-solfege">Si</span></button>
+        <div class="piano-wrapper">
+          <div class="piano-keys-layout">
+            <!-- White Keys -->
+            <div class="white-keys">
+              <button class="p-key-white" data-key="C">C <small>Đô</small></button>
+              <button class="p-key-white" data-key="D">D <small>Rê</small></button>
+              <button class="p-key-white" data-key="E">E <small>Mi</small></button>
+              <button class="p-key-white" data-key="F">F <small>Fa</small></button>
+              <button class="p-key-white" data-key="G">G <small>Sol</small></button>
+              <button class="p-key-white" data-key="A">A <small>La</small></button>
+              <button class="p-key-white" data-key="B">B <small>Si</small></button>
+            </div>
+            <!-- Black Keys (Accidentals) -->
+            <div class="black-keys">
+              <button class="p-key-black" data-key="C#">C#</button>
+              <button class="p-key-black" data-key="D#">D#</button>
+              <button class="p-key-black" data-key="F#">F#</button>
+              <button class="p-key-black" data-key="G#">G#</button>
+              <button class="p-key-black" data-key="A#">A#</button>
+            </div>
           </div>
-          <div class="key-controls-row">
-            <div class="hint-text">Gõ phím <span class="hint-kbd">C</span> <span class="hint-kbd">D</span> <span class="hint-kbd">E</span>...</div>
+          <div class="bottom-info-row">
+            <div class="hint-text">Bàn phím <span class="hint-kbd">C</span><span class="hint-kbd">#</span> hoặc phím <span class="hint-kbd">🎹 Đàn</span></div>
             <button class="skip-btn" id="btn-skip">Bỏ qua ⏭</button>
           </div>
         </div>
@@ -479,9 +535,6 @@
     setupCardEventListeners();
   }
 
-  /**
-   * Set up event listeners inside the Card
-   */
   function setupCardEventListeners() {
     const btnPause = shadow.getElementById('btn-pause');
     const btnSound = shadow.getElementById('btn-sound');
@@ -526,9 +579,9 @@
       });
     }
 
-    // Keyboard buttons
-    const noteButtons = shadow.querySelectorAll('.note-btn');
-    noteButtons.forEach((btn) => {
+    // Keyboard Buttons (White & Black)
+    const allKeys = shadow.querySelectorAll('.p-key-white, .p-key-black');
+    allKeys.forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const letter = btn.getAttribute('data-key');
@@ -536,13 +589,9 @@
       });
     });
 
-    // Make Card Draggable
     setupDraggable();
   }
 
-  /**
-   * Draggable logic
-   */
   function setupDraggable() {
     const header = shadow.getElementById('card-header');
     if (!header) return;
@@ -552,7 +601,6 @@
     let initialRight = 24, initialBottom = 24;
 
     header.addEventListener('mousedown', (e) => {
-      // Don't drag if clicking buttons
       if (e.target.closest('button')) return;
       isDragging = true;
       startX = e.clientX;
@@ -567,7 +615,7 @@
         const dx = moveEvent.clientX - startX;
         const dy = moveEvent.clientY - startY;
 
-        const newRight = Math.max(10, Math.min(window.innerWidth - 380, initialRight - dx));
+        const newRight = Math.max(10, Math.min(window.innerWidth - 400, initialRight - dx));
         const newBottom = Math.max(10, Math.min(window.innerHeight - 250, initialBottom - dy));
 
         root.style.right = `${newRight}px`;
@@ -585,19 +633,16 @@
     });
   }
 
-  /**
-   * Render the VexFlow Sheet Music Stave
-   */
   function renderStave() {
     const containerElem = shadow.getElementById('stave-container');
     if (!containerElem || !state.currentSequence || !window.VexFlow) return;
 
-    containerElem.innerHTML = ''; // Clear previous
+    containerElem.innerHTML = '';
 
     const clef = state.currentSequence.clef;
     const notesData = state.currentSequence.notes;
-    const width = 330;
-    const height = 120;
+    const width = 350;
+    const height = 115;
 
     const renderer = new VexFlow.Renderer(containerElem, VexFlow.Renderer.Backends.SVG);
     renderer.resize(width, height);
@@ -615,15 +660,19 @@
         duration: n.duration
       });
 
-      // Highlight logic
+      // Add accidental modifier if present (e.g. '#' or 'b')
+      if (n.accidental) {
+        note.addModifier(new VexFlow.Accidental(n.accidental), 0);
+      }
+
       if (i < state.userInputs.length) {
-        if (state.userInputs[i] === n.letter) {
-          note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' }); // Green for correct
+        if (MusicEngine.matchInput(state.userInputs[i], n)) {
+          note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
         } else {
-          note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' }); // Red for wrong
+          note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' });
         }
       } else if (state.isAnswerRevealed) {
-        note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' }); // Orange for revealed
+        note.setStyle({ fillStyle: '#f59e0b', strokeStyle: '#f59e0b' });
       }
 
       return note;
@@ -639,9 +688,6 @@
     renderSlots();
   }
 
-  /**
-   * Render Input Progress Slots
-   */
   function renderSlots() {
     const slotsWrap = shadow.getElementById('slots-container');
     if (!slotsWrap || !state.currentSequence) return;
@@ -657,11 +703,11 @@
         slot.classList.add('active');
         slot.innerHTML = `<span class="slot-letter">?</span>`;
       } else if (idx < state.userInputs.length) {
-        const isCorrect = state.userInputs[idx] === note.letter;
+        const isCorrect = MusicEngine.matchInput(state.userInputs[idx], note);
         slot.classList.add(isCorrect ? 'correct' : 'wrong');
         slot.innerHTML = `
           <span class="slot-letter">${state.userInputs[idx]}</span>
-          <span class="slot-solfege">${MusicEngine.NOTE_META[state.userInputs[idx].toLowerCase()].solfege}</span>
+          <span class="slot-solfege">${note.solfege}</span>
         `;
       } else if (state.isAnswerRevealed) {
         slot.classList.add('wrong');
@@ -677,45 +723,47 @@
     });
   }
 
-  /**
-   * Handle user input letter (e.g. 'C', 'E')
-   */
-  function handleNoteInput(letter) {
+  function handleNoteInput(inputNote) {
     if (!state.currentSequence || state.isAnswerRevealed) return;
-    letter = letter.toUpperCase();
-    if (!'CDEFGAB'.includes(letter)) return;
-
-    const targetLetters = state.currentSequence.targetLetters;
     const currentIndex = state.userInputs.length;
-    if (currentIndex >= targetLetters.length) return;
+    const notes = state.currentSequence.notes;
+    if (currentIndex >= notes.length) return;
 
-    const expectedLetter = targetLetters[currentIndex];
-    const currentNote = state.currentSequence.notes[currentIndex];
+    const currentNote = notes[currentIndex];
+    const isCorrect = MusicEngine.matchInput(inputNote, currentNote);
 
-    if (letter === expectedLetter) {
-      // Correct note entered!
-      state.userInputs.push(letter);
+    // Record stats for Spaced Repetition
+    const noteStats = { ...(state.settings.noteStats || {}) };
+    if (!noteStats[currentNote.key]) {
+      noteStats[currentNote.key] = { correct: 0, total: 0 };
+    }
+    noteStats[currentNote.key].total += 1;
+
+    if (isCorrect) {
+      noteStats[currentNote.key].correct += 1;
+      state.userInputs.push(inputNote);
+
       if (window.AudioSynth) {
         window.AudioSynth.playNote(currentNote.frequency, 0.4);
       }
       renderStave();
 
-      // Check if sequence completed
-      if (state.userInputs.length === targetLetters.length) {
+      if (state.userInputs.length === notes.length) {
+        saveSettings({ noteStats });
         handleSequenceSuccess();
       }
     } else {
-      // Wrong note
+      state.userInputs.push(inputNote);
       if (window.AudioSynth) {
         window.AudioSynth.playSoftMiss();
       }
-      state.userInputs.push(letter);
       renderStave();
 
-      // Reset streak and reveal answer gently
       const newStreak = 0;
+      state.isFever = false;
       saveSettings({
         streak: newStreak,
+        noteStats,
         totalAnswered: (state.settings.totalAnswered || 0) + 1
       });
       updateStreakUI();
@@ -727,28 +775,41 @@
     }
   }
 
-  /**
-   * When entire sequence is successfully entered
-   */
   function handleSequenceSuccess() {
-    if (window.AudioSynth) {
-      window.AudioSynth.playSuccess();
-    }
+    const isRpg = state.settings.gameMode === 'rpg';
+    const oldXp = state.settings.xp || 0;
+    const oldLevel = MusicEngine.getRpgLevel(oldXp).current.level;
 
     const newStreak = (state.settings.streak || 0) + 1;
     const bestStreak = Math.max(state.settings.bestStreak || 0, newStreak);
     const totalAnswered = (state.settings.totalAnswered || 0) + 1;
     const totalCorrect = (state.settings.totalCorrect || 0) + 1;
 
+    // Check Combo Fever (Streak >= 10)
+    if (newStreak >= 10 && !state.isFever) {
+      state.isFever = true;
+      if (window.AudioSynth) window.AudioSynth.playFever();
+    } else {
+      if (window.AudioSynth) window.AudioSynth.playSuccess();
+    }
+
+    const earnedXp = (10 + Math.min(newStreak, 5) * 2) * (state.isFever ? 2 : 1);
+    const newXp = oldXp + earnedXp;
+    const newLevel = MusicEngine.getRpgLevel(newXp).current.level;
+
+    if (isRpg && newLevel > oldLevel) {
+      if (window.AudioSynth) window.AudioSynth.playLevelUp();
+    }
+
     saveSettings({
       streak: newStreak,
       bestStreak: bestStreak,
+      xp: newXp,
       totalAnswered: totalAnswered,
       totalCorrect: totalCorrect
     });
     updateStreakUI();
 
-    // Gentle short pause before next question
     setTimeout(() => {
       nextQuestion();
     }, 800);
@@ -757,70 +818,72 @@
   function updateStreakUI() {
     const count = shadow.getElementById('streak-count');
     if (count) count.textContent = state.settings.streak || 0;
+    const card = shadow.getElementById('widget-card');
+    if (card) {
+      card.classList.toggle('fever-mode', state.isFever);
+    }
   }
 
-  /**
-   * Next Question Generator
-   */
   function nextQuestion() {
     if (!window.MusicEngine) return;
-    state.currentSequence = MusicEngine.generateSequence(
-      state.settings.clefMode,
-      state.settings.seqLength || 3
-    );
+
+    let clefMode = state.settings.clefMode;
+    let length = state.settings.seqLength || 3;
+    let intervalSec = state.settings.intervalSeconds || 5;
+    let allowAccidentals = !!state.settings.allowAccidentals;
+
+    // In RPG mode, settings follow current level
+    if (state.settings.gameMode === 'rpg') {
+      const rpg = MusicEngine.getRpgLevel(state.settings.xp || 0).current;
+      clefMode = rpg.clef;
+      length = rpg.length;
+      intervalSec = rpg.interval;
+      allowAccidentals = rpg.accidentals;
+    }
+
+    state.currentSequence = MusicEngine.generateSequence({
+      clefMode: clefMode,
+      length: length,
+      allowAccidentals: allowAccidentals,
+      noteStats: state.settings.noteStats
+    });
     state.userInputs = [];
     state.isAnswerRevealed = false;
-    resetTimer();
+    resetTimer(intervalSec);
 
     if (!state.isMinimized) {
-      const badge = shadow.getElementById('clef-badge');
-      if (badge) {
-        badge.textContent = state.currentSequence.clef === 'treble' 
-          ? 'Khóa Sol 𝄞' 
-          : 'Khóa Fa 𝄢';
-      }
+      buildWidgetDOM();
       renderStave();
     }
   }
 
-  /**
-   * 5s Timer Countdown logic (Gentle Mode)
-   */
-  function startTimer() {
+  function startTimer(intervalSec) {
     clearInterval(state.timerId);
-    const intervalSec = state.settings.intervalSeconds || 5;
     const stepMs = 100;
-    const totalSteps = (intervalSec * 1000) / stepMs;
+    const totalSteps = ((intervalSec || state.settings.intervalSeconds || 5) * 1000) / stepMs;
     let currentStep = totalSteps;
 
     state.timerId = setInterval(() => {
       if (state.isPaused) return;
-
       currentStep--;
       const percentage = (currentStep / totalSteps) * 100;
 
-      // Update Card Timer Bar
       const timerBar = shadow.getElementById('timer-bar');
       if (timerBar) {
         timerBar.style.width = `${Math.max(0, percentage)}%`;
       }
 
-      // Update Bubble Progress Ring (if minimized)
       const ring = shadow.getElementById('bubble-progress');
       if (ring) {
-        const circumference = 2 * Math.PI * 26; // ~163
+        const circumference = 2 * Math.PI * 27;
         const offset = circumference - (percentage / 100) * circumference;
         ring.style.strokeDashoffset = offset;
       }
 
       if (currentStep <= 0) {
-        // 5s timeout reached!
-        // Gentle Mode: If user didn't finish, quietly advance or softly reveal
         if (state.userInputs.length === 0) {
-          // User was just reading, silently generate new note sequence
           nextQuestion();
         } else {
-          // User started typing but timed out: softly reveal answer and advance
           state.isAnswerRevealed = true;
           renderStave();
           setTimeout(() => {
@@ -831,8 +894,8 @@
     }, stepMs);
   }
 
-  function resetTimer() {
-    startTimer();
+  function resetTimer(intervalSec) {
+    startTimer(intervalSec);
   }
 
   function togglePause() {
@@ -853,11 +916,9 @@
     if (btn) btn.textContent = isMuted ? '🔇' : '🔊';
   }
 
-  /**
-   * Global Keyboard Listener
-   */
+  // Keyboard Handler (supports Sharp # with Shift)
+  let pendingKey = null;
   window.addEventListener('keydown', (e) => {
-    // Only capture if user is not typing in an input/textarea/contenteditable
     const active = document.activeElement;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
       return;
@@ -865,9 +926,30 @@
 
     const key = e.key.toUpperCase();
     if ('CDEFGAB'.includes(key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      handleNoteInput(key);
+      if (e.shiftKey) {
+        // Shift + Note = Sharp Note (e.g. Shift + C = C#)
+        handleNoteInput(key + '#');
+      } else {
+        handleNoteInput(key);
+      }
     }
   });
+
+  // Setup Web MIDI Controller
+  function setupMidi() {
+    if (window.MidiController) {
+      window.MidiController.init();
+      window.MidiController.onStateChange((info) => {
+        state.isMidiConnected = info.isConnected;
+        state.midiDeviceName = info.deviceName;
+        buildWidgetDOM();
+        renderStave();
+      });
+      window.MidiController.onNote((noteInfo) => {
+        handleNoteInput(noteInfo.letter);
+      });
+    }
+  }
 
   // Listen for storage changes from Popup
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
@@ -875,7 +957,7 @@
       let shouldRefresh = false;
       for (const [key, val] of Object.entries(changes)) {
         state.settings[key] = val.newValue;
-        if (key === 'clefMode' || key === 'seqLength') {
+        if (['clefMode', 'seqLength', 'allowAccidentals', 'gameMode'].includes(key)) {
           shouldRefresh = true;
         }
         if (key === 'isMuted' && window.AudioSynth) {
@@ -891,33 +973,14 @@
     });
   }
 
-  // Initialize
-  async function init() {
-    if (window.VexFlow) {
-      if (window.VexFlow.Font && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-        window.VexFlow.Font.HOST_URL = chrome.runtime.getURL('lib/fonts/');
-      }
-      try {
-        if (VexFlow.loadFonts) {
-          await VexFlow.loadFonts('Bravura', 'Academico');
-        }
-        if (VexFlow.setFonts) {
-          VexFlow.setFonts('Bravura', 'Academico');
-        }
-      } catch (err) {
-        console.warn('VexFlow font note:', err);
-      }
+  // Init
+  loadSettings(() => {
+    if (!state.settings.enabled) {
+      root.style.display = 'none';
     }
-
-    loadSettings(() => {
-      if (!state.settings.enabled) {
-        root.style.display = 'none';
-      }
-      buildWidgetDOM();
-      nextQuestion();
-    });
-  }
-
-  init();
+    buildWidgetDOM();
+    nextQuestion();
+    setupMidi();
+  });
 
 })();

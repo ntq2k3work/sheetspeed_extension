@@ -1,7 +1,9 @@
 /**
- * SheetSpeed - Audio Synth
- * Pure Web Audio API synthesizer for gentle piano/marimba notes and pleasant chimes.
- * No external audio files required.
+ * SheetSpeed - Audio Synth 2.0
+ * Pure Web Audio API synthesizer.
+ * Supports:
+ * - 12 chromatic notes per octave
+ * - Success arpeggio, soft miss, Level-up fanfare, Fever combo sound
  */
 
 (function (global) {
@@ -30,28 +32,19 @@
       this.isMuted = !!muted;
     }
 
-    /**
-     * Play a single musical note with gentle piano/bell envelope
-     * @param {number} freq - Frequency in Hz
-     * @param {number} duration - Duration in seconds
-     */
     playNote(freq, duration = 0.5) {
       if (this.isMuted) return;
       const ctx = this._getOrCreateContext();
       if (!ctx) return;
 
       const now = ctx.currentTime;
-
-      // Master gain for this note
       const masterGain = ctx.createGain();
       masterGain.connect(ctx.destination);
 
-      // Main tone: Triangle wave (warm, round body)
       const osc1 = ctx.createOscillator();
       osc1.type = 'triangle';
       osc1.frequency.setValueAtTime(freq, now);
 
-      // Subtle harmonic: Sine wave at 2x frequency (sweet sparkle)
       const osc2 = ctx.createOscillator();
       osc2.type = 'sine';
       osc2.frequency.setValueAtTime(freq * 2, now);
@@ -78,25 +71,30 @@
       osc2.stop(now + duration + 0.05);
     }
 
-    /**
-     * Play a delightful gentle success arpeggio when completing the sequence
-     */
     playSuccess() {
       if (this.isMuted) return;
-      const ctx = this._getOrCreateContext();
-      if (!ctx) return;
-
       const baseNotes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
       baseNotes.forEach((freq, idx) => {
-        setTimeout(() => {
-          this.playNote(freq, 0.4);
-        }, idx * 75);
+        setTimeout(() => this.playNote(freq, 0.4), idx * 70);
       });
     }
 
-    /**
-     * Play a very soft, non-intrusive miss cue
-     */
+    playLevelUp() {
+      if (this.isMuted) return;
+      const notes = [440, 554.37, 659.25, 880, 1108.73]; // A major fanfare
+      notes.forEach((freq, idx) => {
+        setTimeout(() => this.playNote(freq, 0.5), idx * 90);
+      });
+    }
+
+    playFever() {
+      if (this.isMuted) return;
+      const notes = [587.33, 739.99, 880, 1174.66]; // D major sparkles
+      notes.forEach((freq, idx) => {
+        setTimeout(() => this.playNote(freq, 0.35), idx * 60);
+      });
+    }
+
     playSoftMiss() {
       if (this.isMuted) return;
       const ctx = this._getOrCreateContext();
@@ -108,7 +106,7 @@
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(220, now);
-      osc.frequency.exponentialRampToValueAtTime(180, now + 0.2);
+      osc.frequency.exponentialRampToValueAtTime(160, now + 0.2);
 
       gain.gain.setValueAtTime(0.15, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);

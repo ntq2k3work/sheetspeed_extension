@@ -1,6 +1,6 @@
 /**
- * SheetSpeed - Popup Controller
- * Manages extension settings, statistics, and in-popup focus practice mode.
+ * SheetSpeed - Popup Controller 2.0
+ * Manages settings, RPG Level, Web MIDI API, Heatmap and Focus Practice Mode.
  */
 
 (function () {
@@ -11,11 +11,15 @@
     intervalSeconds: 5,
     clefMode: 'mixed',
     seqLength: 3,
+    allowAccidentals: false,
+    gameMode: 'custom',
+    xp: 0,
     isMuted: false,
     streak: 0,
     bestStreak: 0,
     totalAnswered: 0,
-    totalCorrect: 0
+    totalCorrect: 0,
+    noteStats: {}
   };
 
   let state = {
@@ -23,12 +27,22 @@
     currentSequence: null,
     userInputs: [],
     timerId: null,
-    isAnswerRevealed: false
+    isAnswerRevealed: false,
+    isFever: false
   };
 
   // DOM Elements
   const toggleEnabled = document.getElementById('toggle-enabled');
   const toggleSound = document.getElementById('toggle-sound');
+  const toggleAccidentals = document.getElementById('toggle-accidentals');
+  const midiStatus = document.getElementById('midi-status');
+  const customOptions = document.getElementById('custom-options');
+
+  const rpgLevelBadge = document.getElementById('rpg-level-badge');
+  const rpgLevelTitle = document.getElementById('rpg-level-title');
+  const rpgXpText = document.getElementById('rpg-xp-text');
+  const rpgXpFill = document.getElementById('rpg-xp-fill');
+
   const statStreak = document.getElementById('stat-streak');
   const statBest = document.getElementById('stat-best');
   const statAccuracy = document.getElementById('stat-accuracy');
@@ -36,16 +50,22 @@
   const btnResetStats = document.getElementById('btn-reset-stats');
 
   const popupClefTag = document.getElementById('popup-clef-tag');
+  const popupModeTag = document.getElementById('popup-mode-tag');
   const popupTimerBar = document.getElementById('popup-timer-bar');
   const popupStaveContainer = document.getElementById('popup-stave-container');
   const popupSlotsContainer = document.getElementById('popup-slots-container');
+  const heatmapGrid = document.getElementById('heatmap-grid');
+  const practiceCard = document.getElementById('practice-card');
 
   function init() {
     loadSettings(() => {
       updateUIWithSettings();
       updateStatsUI();
+      updateRpgUI();
+      renderHeatmap();
       bindSettingsEvents();
       bindPracticeEvents();
+      setupMidi();
       nextQuestion();
     });
   }
@@ -70,16 +90,23 @@
       chrome.storage.local.set(updates);
     }
     updateStatsUI();
+    updateRpgUI();
+    renderHeatmap();
   }
 
   function updateUIWithSettings() {
     if (toggleEnabled) toggleEnabled.checked = state.settings.enabled;
     if (toggleSound) toggleSound.checked = !state.settings.isMuted;
+    if (toggleAccidentals) toggleAccidentals.checked = !!state.settings.allowAccidentals;
 
-    // Segmented controls
+    setSegmentActive('control-gamemode', state.settings.gameMode);
     setSegmentActive('control-clef', state.settings.clefMode);
     setSegmentActive('control-interval', String(state.settings.intervalSeconds));
     setSegmentActive('control-length', String(state.settings.seqLength));
+
+    if (customOptions) {
+      customOptions.style.display = state.settings.gameMode === 'rpg' ? 'none' : 'block';
+    }
   }
 
   function setSegmentActive(containerId, value) {
@@ -89,6 +116,20 @@
     buttons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-val') === value);
     });
+  }
+
+  function updateRpgUI() {
+    const rpg = MusicEngine.getRpgLevel(state.settings.xp || 0);
+    if (rpgLevelBadge) rpgLevelBadge.textContent = `Cấp độ ${rpg.current.level}`;
+    if (rpgLevelTitle) rpgLevelTitle.textContent = rpg.current.title;
+    if (rpgXpText) {
+      const nextXp = rpg.next ? rpg.next.reqXp : 'MAX';
+      rpgXpText.textContent = `${rpg.xp} / ${nextXp} XP`;
+    }
+    if (rpgXpFill) rpgXpFill.style.width = `${rpg.progress}%`;
+    if (popupModeTag) {
+      popupModeTag.textContent = state.settings.gameMode === 'rpg' ? `Lv.${rpg.current.level}` : 'Tự do';
+    }
   }
 
   function updateStatsUI() {
@@ -101,6 +142,43 @@
       ? Math.round((s.totalCorrect / s.totalAnswered) * 100) 
       : 100;
     if (statAccuracy) statAccuracy.textContent = `${acc}%`;
+
+    if (practiceCard) {
+      practiceCard.classList.toggle('fever', state.isFever);
+    }
+  }
+
+  function renderHeatmap() {
+    if (!heatmapGrid) return;
+    heatmapGrid.innerHTML = '';
+
+    // Sample set of primary natural notes
+    const keys = [
+      'c/4', 'd/4', 'e/4', 'f/4', 'g/4', 'a/4', 'b/4',
+      'c/5', 'd/5', 'e/5', 'f/5', 'g/5', 'a/5', 'b/5'
+    ];
+    const stats = state.settings.noteStats || {};
+
+    keys.forEach(k => {
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell';
+      const [step, oct] = k.split('/');
+      const letter = step.toUpperCase() + oct;
+
+      const noteStat = stats[k];
+      let accText = '--%';
+
+      if (noteStat && noteStat.total > 0) {
+        const acc = Math.round((noteStat.correct / noteStat.total) * 100);
+        accText = `${acc}%`;
+        if (acc >= 80) cell.classList.add('good');
+        else if (acc >= 60) cell.classList.add('fair');
+        else cell.classList.add('weak');
+      }
+
+      cell.innerHTML = `<span>${letter}</span><small>${accText}</small>`;
+      heatmapGrid.appendChild(cell);
+    });
   }
 
   function bindSettingsEvents() {
@@ -118,34 +196,47 @@
       });
     }
 
-    // Clef mode segments
+    if (toggleAccidentals) {
+      toggleAccidentals.addEventListener('change', (e) => {
+        saveSettings({ allowAccidentals: e.target.checked });
+        nextQuestion();
+      });
+    }
+
+    // Game mode switch (RPG vs Custom)
+    setupSegmentGroup('control-gamemode', (val) => {
+      saveSettings({ gameMode: val });
+      if (customOptions) customOptions.style.display = val === 'rpg' ? 'none' : 'block';
+      nextQuestion();
+    });
+
     setupSegmentGroup('control-clef', (val) => {
       saveSettings({ clefMode: val });
       nextQuestion();
     });
 
-    // Interval segments
     setupSegmentGroup('control-interval', (val) => {
       saveSettings({ intervalSeconds: parseInt(val, 10) });
       resetTimer();
     });
 
-    // Sequence length segments
     setupSegmentGroup('control-length', (val) => {
       saveSettings({ seqLength: parseInt(val, 10) });
       nextQuestion();
     });
 
-    // Reset stats
     if (btnResetStats) {
       btnResetStats.addEventListener('click', () => {
-        if (confirm('Bạn có chắc chắn muốn đặt lại toàn bộ thống kê chuỗi nốt?')) {
+        if (confirm('Bạn có chắc chắn muốn đặt lại toàn bộ Level, XP và Heatmap thống kê?')) {
           saveSettings({
             streak: 0,
             bestStreak: 0,
+            xp: 0,
             totalAnswered: 0,
-            totalCorrect: 0
+            totalCorrect: 0,
+            noteStats: {}
           });
+          nextQuestion();
         }
       });
     }
@@ -163,9 +254,8 @@
     });
   }
 
-  // Focus Practice Engine inside Popup
   function bindPracticeEvents() {
-    const keyButtons = document.querySelectorAll('.keys-grid .key-btn');
+    const keyButtons = document.querySelectorAll('.piano-wrapper .key-btn');
     keyButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = btn.getAttribute('data-key');
@@ -176,17 +266,57 @@
     window.addEventListener('keydown', (e) => {
       const key = e.key.toUpperCase();
       if ('CDEFGAB'.includes(key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        handleNoteInput(key);
+        if (e.shiftKey) {
+          handleNoteInput(key + '#');
+        } else {
+          handleNoteInput(key);
+        }
       }
     });
   }
 
+  function setupMidi() {
+    if (window.MidiController) {
+      window.MidiController.init();
+      window.MidiController.onStateChange((info) => {
+        if (midiStatus) {
+          if (info.isConnected) {
+            midiStatus.textContent = `🎹 ${info.deviceName || 'MIDI ON'}`;
+            midiStatus.classList.add('connected');
+          } else {
+            midiStatus.textContent = '🎹 MIDI: Off';
+            midiStatus.classList.remove('connected');
+          }
+        }
+      });
+      window.MidiController.onNote((noteInfo) => {
+        handleNoteInput(noteInfo.letter);
+      });
+    }
+  }
+
   function nextQuestion() {
     if (!window.MusicEngine) return;
-    state.currentSequence = MusicEngine.generateSequence(
-      state.settings.clefMode,
-      state.settings.seqLength || 3
-    );
+
+    let clefMode = state.settings.clefMode;
+    let length = state.settings.seqLength || 3;
+    let intervalSec = state.settings.intervalSeconds || 5;
+    let allowAccidentals = !!state.settings.allowAccidentals;
+
+    if (state.settings.gameMode === 'rpg') {
+      const rpg = MusicEngine.getRpgLevel(state.settings.xp || 0).current;
+      clefMode = rpg.clef;
+      length = rpg.length;
+      intervalSec = rpg.interval;
+      allowAccidentals = rpg.accidentals;
+    }
+
+    state.currentSequence = MusicEngine.generateSequence({
+      clefMode: clefMode,
+      length: length,
+      allowAccidentals: allowAccidentals,
+      noteStats: state.settings.noteStats
+    });
     state.userInputs = [];
     state.isAnswerRevealed = false;
 
@@ -197,7 +327,7 @@
     }
 
     renderStave();
-    resetTimer();
+    resetTimer(intervalSec);
   }
 
   function renderStave() {
@@ -206,7 +336,7 @@
 
     const clef = state.currentSequence.clef;
     const notesData = state.currentSequence.notes;
-    const width = 340;
+    const width = 360;
     const height = 115;
 
     const renderer = new VexFlow.Renderer(popupStaveContainer, VexFlow.Renderer.Backends.SVG);
@@ -225,8 +355,12 @@
         duration: n.duration
       });
 
+      if (n.accidental) {
+        note.addModifier(new VexFlow.Accidental(n.accidental), 0);
+      }
+
       if (i < state.userInputs.length) {
-        if (state.userInputs[i] === n.letter) {
+        if (MusicEngine.matchInput(state.userInputs[i], n)) {
           note.setStyle({ fillStyle: '#10b981', strokeStyle: '#10b981' });
         } else {
           note.setStyle({ fillStyle: '#ef4444', strokeStyle: '#ef4444' });
@@ -261,11 +395,11 @@
         slot.classList.add('active');
         slot.innerHTML = `<span>?</span>`;
       } else if (idx < state.userInputs.length) {
-        const isCorrect = state.userInputs[idx] === note.letter;
+        const isCorrect = MusicEngine.matchInput(state.userInputs[idx], note);
         slot.classList.add(isCorrect ? 'correct' : 'wrong');
         slot.innerHTML = `
           <span>${state.userInputs[idx]}</span>
-          <span class="slot-solfege">${MusicEngine.NOTE_META[state.userInputs[idx].toLowerCase()].solfege}</span>
+          <span class="slot-solfege">${note.solfege}</span>
         `;
       } else if (state.isAnswerRevealed) {
         slot.classList.add('wrong');
@@ -281,46 +415,43 @@
     });
   }
 
-  function handleNoteInput(letter) {
+  function handleNoteInput(inputNote) {
     if (!state.currentSequence || state.isAnswerRevealed) return;
-    letter = letter.toUpperCase();
-    if (!'CDEFGAB'.includes(letter)) return;
-
-    const targetLetters = state.currentSequence.targetLetters;
     const currentIndex = state.userInputs.length;
-    if (currentIndex >= targetLetters.length) return;
+    const notes = state.currentSequence.notes;
+    if (currentIndex >= notes.length) return;
 
-    const expectedLetter = targetLetters[currentIndex];
-    const currentNote = state.currentSequence.notes[currentIndex];
+    const currentNote = notes[currentIndex];
+    const isCorrect = MusicEngine.matchInput(inputNote, currentNote);
 
-    if (letter === expectedLetter) {
-      state.userInputs.push(letter);
+    const noteStats = { ...(state.settings.noteStats || {}) };
+    if (!noteStats[currentNote.key]) {
+      noteStats[currentNote.key] = { correct: 0, total: 0 };
+    }
+    noteStats[currentNote.key].total += 1;
+
+    if (isCorrect) {
+      noteStats[currentNote.key].correct += 1;
+      state.userInputs.push(inputNote);
+
       if (window.AudioSynth) {
         window.AudioSynth.playNote(currentNote.frequency, 0.4);
       }
       renderStave();
 
-      if (state.userInputs.length === targetLetters.length) {
-        // Complete!
-        if (window.AudioSynth) window.AudioSynth.playSuccess();
-        const newStreak = (state.settings.streak || 0) + 1;
-        const bestStreak = Math.max(state.settings.bestStreak || 0, newStreak);
-        saveSettings({
-          streak: newStreak,
-          bestStreak: bestStreak,
-          totalAnswered: (state.settings.totalAnswered || 0) + 1,
-          totalCorrect: (state.settings.totalCorrect || 0) + 1
-        });
-        setTimeout(nextQuestion, 700);
+      if (state.userInputs.length === notes.length) {
+        saveSettings({ noteStats });
+        handleSequenceSuccess();
       }
     } else {
-      // Wrong note
+      state.userInputs.push(inputNote);
       if (window.AudioSynth) window.AudioSynth.playSoftMiss();
-      state.userInputs.push(letter);
       renderStave();
 
+      state.isFever = false;
       saveSettings({
         streak: 0,
+        noteStats,
         totalAnswered: (state.settings.totalAnswered || 0) + 1
       });
 
@@ -329,11 +460,46 @@
     }
   }
 
-  function startTimer() {
+  function handleSequenceSuccess() {
+    const isRpg = state.settings.gameMode === 'rpg';
+    const oldXp = state.settings.xp || 0;
+    const oldLevel = MusicEngine.getRpgLevel(oldXp).current.level;
+
+    const newStreak = (state.settings.streak || 0) + 1;
+    const bestStreak = Math.max(state.settings.bestStreak || 0, newStreak);
+    const totalAnswered = (state.settings.totalAnswered || 0) + 1;
+    const totalCorrect = (state.settings.totalCorrect || 0) + 1;
+
+    if (newStreak >= 10 && !state.isFever) {
+      state.isFever = true;
+      if (window.AudioSynth) window.AudioSynth.playFever();
+    } else {
+      if (window.AudioSynth) window.AudioSynth.playSuccess();
+    }
+
+    const earnedXp = (10 + Math.min(newStreak, 5) * 2) * (state.isFever ? 2 : 1);
+    const newXp = oldXp + earnedXp;
+    const newLevel = MusicEngine.getRpgLevel(newXp).current.level;
+
+    if (isRpg && newLevel > oldLevel) {
+      if (window.AudioSynth) window.AudioSynth.playLevelUp();
+    }
+
+    saveSettings({
+      streak: newStreak,
+      bestStreak: bestStreak,
+      xp: newXp,
+      totalAnswered: totalAnswered,
+      totalCorrect: totalCorrect
+    });
+
+    setTimeout(nextQuestion, 700);
+  }
+
+  function startTimer(intervalSec) {
     clearInterval(state.timerId);
-    const intervalSec = state.settings.intervalSeconds || 5;
     const stepMs = 100;
-    const totalSteps = (intervalSec * 1000) / stepMs;
+    const totalSteps = ((intervalSec || state.settings.intervalSeconds || 5) * 1000) / stepMs;
     let currentStep = totalSteps;
 
     state.timerId = setInterval(() => {
@@ -355,10 +521,9 @@
     }, stepMs);
   }
 
-  function resetTimer() {
-    startTimer();
+  function resetTimer(intervalSec) {
+    startTimer(intervalSec);
   }
 
-  // Start on load
   document.addEventListener('DOMContentLoaded', init);
 })();

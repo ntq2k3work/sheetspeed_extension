@@ -8,6 +8,7 @@
   <script src="../../lib/vexflow.min.js"></script>
   <script src="../engine/music-engine.js"></script>
   <script src="../engine/audio-synth.js"></script>
+  <script src="../engine/midi-controller.js"></script>
 </head>
 <body>
   <div class="popup-container">
@@ -16,15 +17,30 @@
       <div class="brand">
         <span class="brand-icon">🎵</span>
         <div class="brand-meta">
-          <h1>SheetSpeed</h1>
-          <p>Luyện đọc sheet 5s (Gentle Mode)</p>
+          <h1>SheetSpeed 2.0</h1>
+          <p id="sub-mode-desc">Gentle Mode &amp; Sight-Reading</p>
         </div>
       </div>
-      <label class="toggle-switch" title="Bật/Tắt thẻ nổi trên website">
-        <input type="checkbox" id="toggle-enabled" checked>
-        <span class="slider"></span>
-      </label>
+      <div class="header-right">
+        <span class="midi-status-tag" id="midi-status" title="Trạng thái đàn piano MIDI">🎹 MIDI: Off</span>
+        <label class="toggle-switch" title="Bật/Tắt thẻ nổi trên website">
+          <input type="checkbox" id="toggle-enabled" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
     </header>
+
+    <!-- RPG Level & XP Bar -->
+    <section class="rpg-section" id="rpg-section">
+      <div class="rpg-header">
+        <span class="level-badge" id="rpg-level-badge">Cấp độ 1</span>
+        <span class="level-title" id="rpg-level-title">Nhập môn (Novice)</span>
+        <span class="xp-text" id="rpg-xp-text">0 / 50 XP</span>
+      </div>
+      <div class="xp-bar-bg">
+        <div class="xp-bar-fill" id="rpg-xp-fill"></div>
+      </div>
+    </section>
 
     <!-- Stats Bar -->
     <section class="stats-bar">
@@ -47,9 +63,12 @@
     </section>
 
     <!-- Focus Practice Area (Play right inside popup) -->
-    <section class="practice-card">
+    <section class="practice-card" id="practice-card">
       <div class="practice-header">
-        <span class="clef-tag" id="popup-clef-tag">Khóa Sol 𝄞</span>
+        <div class="practice-tags">
+          <span class="clef-tag" id="popup-clef-tag">Khóa Sol 𝄞</span>
+          <span class="mode-tag" id="popup-mode-tag">RPG</span>
+        </div>
         <div class="popup-timer-wrap">
           <div class="popup-timer-bar" id="popup-timer-bar"></div>
         </div>
@@ -59,44 +78,93 @@
       
       <div class="slots-box" id="popup-slots-container"></div>
 
-      <div class="keys-grid">
-        <button class="key-btn" data-key="C">C <small>Đô</small></button>
-        <button class="key-btn" data-key="D">D <small>Rê</small></button>
-        <button class="key-btn" data-key="E">E <small>Mi</small></button>
-        <button class="key-btn" data-key="F">F <small>Fa</small></button>
-        <button class="key-btn" data-key="G">G <small>Sol</small></button>
-        <button class="key-btn" data-key="A">A <small>La</small></button>
-        <button class="key-btn" data-key="B">B <small>Si</small></button>
+      <!-- Piano Keyboard (White + Black Keys) -->
+      <div class="piano-wrapper">
+        <div class="piano-keys-layout">
+          <!-- White keys -->
+          <div class="white-keys">
+            <button class="key-btn p-key-white" data-key="C">C <small>Đô</small></button>
+            <button class="key-btn p-key-white" data-key="D">D <small>Rê</small></button>
+            <button class="key-btn p-key-white" data-key="E">E <small>Mi</small></button>
+            <button class="key-btn p-key-white" data-key="F">F <small>Fa</small></button>
+            <button class="key-btn p-key-white" data-key="G">G <small>Sol</small></button>
+            <button class="key-btn p-key-white" data-key="A">A <small>La</small></button>
+            <button class="key-btn p-key-white" data-key="B">B <small>Si</small></button>
+          </div>
+          <!-- Black keys (Accidentals) -->
+          <div class="black-keys">
+            <button class="key-btn p-key-black" data-key="C#">C#</button>
+            <button class="key-btn p-key-black" data-key="D#">D#</button>
+            <button class="key-btn p-key-black" data-key="F#">F#</button>
+            <button class="key-btn p-key-black" data-key="G#">G#</button>
+            <button class="key-btn p-key-black" data-key="A#">A#</button>
+          </div>
+        </div>
       </div>
     </section>
 
+    <!-- Weak Note Heatmap Drawer (Feature 5) -->
+    <details class="drawer-card">
+      <summary class="drawer-header">📊 Heatmap: Nốt hay đọc sai (Spaced Repetition)</summary>
+      <div class="drawer-content">
+        <p class="heatmap-desc">Hệ thống theo dõi độ chính xác từng nốt. Nốt màu đỏ sẽ được tự động tăng tần suất xuất hiện để rèn luyện phản xạ:</p>
+        <div class="heatmap-grid" id="heatmap-grid">
+          <!-- Populated by JS -->
+        </div>
+        <div class="heatmap-legend">
+          <span><i class="dot dot-green"></i> Tốt (>80%)</span>
+          <span><i class="dot dot-yellow"></i> Khá (60-80%)</span>
+          <span><i class="dot dot-red"></i> Yếu (&lt;60%)</span>
+          <span><i class="dot dot-gray"></i> Chưa gặp</span>
+        </div>
+      </div>
+    </details>
+
     <!-- Quick Settings Accordion -->
-    <details class="settings-drawer">
-      <summary class="drawer-header">⚙️ Cài đặt & Tùy chọn</summary>
+    <details class="drawer-card">
+      <summary class="drawer-header">⚙️ Cài đặt &amp; Chế độ chơi</summary>
       <div class="drawer-content">
         <div class="form-group">
-          <label>Khóa nhạc (Clef)</label>
-          <div class="segmented-control" id="control-clef">
-            <button type="button" class="segment active" data-val="mixed">Xen kẽ</button>
-            <button type="button" class="segment" data-val="treble">Sol 𝄞</button>
-            <button type="button" class="segment" data-val="bass">Fa 𝄢</button>
+          <label>Chế độ chơi (Game Mode)</label>
+          <div class="segmented-control" id="control-gamemode">
+            <button type="button" class="segment active" data-val="custom">Tự do (Custom)</button>
+            <button type="button" class="segment" data-val="rpg">RPG Lên Cấp (Levels)</button>
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Thời gian mỗi câu</label>
-          <div class="segmented-control" id="control-interval">
-            <button type="button" class="segment" data-val="3">3s</button>
-            <button type="button" class="segment active" data-val="5">5s (Chuẩn)</button>
-            <button type="button" class="segment" data-val="10">10s</button>
+        <div id="custom-options">
+          <div class="form-group">
+            <label>Khóa nhạc (Clef)</label>
+            <div class="segmented-control" id="control-clef">
+              <button type="button" class="segment active" data-val="mixed">Xen kẽ</button>
+              <button type="button" class="segment" data-val="treble">Sol 𝄞</button>
+              <button type="button" class="segment" data-val="bass">Fa 𝄢</button>
+            </div>
           </div>
-        </div>
 
-        <div class="form-group">
-          <label>Độ dài chuỗi nốt</label>
-          <div class="segmented-control" id="control-length">
-            <button type="button" class="segment active" data-val="3">3 nốt</button>
-            <button type="button" class="segment" data-val="4">4 nốt</button>
+          <div class="form-group">
+            <label>Thời gian mỗi câu</label>
+            <div class="segmented-control" id="control-interval">
+              <button type="button" class="segment" data-val="3">3s</button>
+              <button type="button" class="segment active" data-val="5">5s (Chuẩn)</button>
+              <button type="button" class="segment" data-val="10">10s</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Độ dài chuỗi nốt</label>
+            <div class="segmented-control" id="control-length">
+              <button type="button" class="segment active" data-val="3">3 nốt</button>
+              <button type="button" class="segment" data-val="4">4 nốt</button>
+            </div>
+          </div>
+
+          <div class="setting-toggle-row">
+            <span>Bật dấu Thăng/Giáng (♯ / ♭)</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-accidentals">
+              <span class="slider"></span>
+            </label>
           </div>
         </div>
 
@@ -108,7 +176,7 @@
           </label>
         </div>
 
-        <button class="reset-stats-btn" id="btn-reset-stats">Xóa dữ liệu thống kê</button>
+        <button class="reset-stats-btn" id="btn-reset-stats">Đặt lại toàn bộ dữ liệu &amp; Level</button>
       </div>
     </details>
   </div>

@@ -27,6 +27,7 @@
         "lib/vexflow.min.js",
         "src/engine/music-engine.js",
         "src/engine/audio-synth.js",
+        "src/engine/midi-controller.js",
         "src/content/content.js"
       ],
       "css": [
